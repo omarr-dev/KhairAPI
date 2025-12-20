@@ -1,0 +1,240 @@
+using Microsoft.EntityFrameworkCore;
+using KhairAPI.Data;
+using KhairAPI.Models.DTOs;
+using KhairAPI.Models.Entities;
+using KhairAPI.Services.Interfaces;
+
+namespace KhairAPI.Services.Implementations
+{
+    public class ProgressService : IProgressService
+    {
+        private readonly AppDbContext _context;
+        private readonly IQuranService _quranService;
+
+        public ProgressService(AppDbContext context, IQuranService quranService)
+        {
+            _context = context;
+            _quranService = quranService;
+        }
+
+        public async Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto)
+        {
+            var studentAssignment = await _context.StudentHalaqat
+                .FirstOrDefaultAsync(sh =>
+                    sh.StudentId == dto.StudentId &&
+                    sh.HalaqaId == dto.HalaqaId &&
+                    sh.TeacherId == dto.TeacherId &&
+                    sh.IsActive);
+
+            if (studentAssignment == null)
+            {
+                throw new InvalidOperationException("الطالب غير مسجل في هذه الحلقة مع هذا المعلم");
+            }
+
+            var student = await _context.Students.FindAsync(dto.StudentId);
+            if (student == null)
+            {
+                throw new InvalidOperationException("الطالب غير موجود");
+            }
+
+            var surah = _quranService.GetSurahByName(dto.SurahName);
+            if (surah == null)
+            {
+                throw new InvalidOperationException("السورة غير موجودة");
+            }
+
+            var progressRecord = new ProgressRecord
+            {
+                StudentId = dto.StudentId,
+                TeacherId = dto.TeacherId,
+                HalaqaId = dto.HalaqaId,
+                Date = dto.Date.Date,
+                Type = dto.Type,
+                SurahName = dto.SurahName,
+                FromVerse = dto.FromVerse,
+                ToVerse = dto.ToVerse,
+                Quality = dto.Quality,
+                Notes = dto.Notes,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.ProgressRecords.Add(progressRecord);
+
+            if (dto.Type == ProgressType.Memorization)
+            {
+                var (nextSurah, nextVerse) = _quranService.GetNextPosition(
+                    student.MemorizationDirection,
+                    surah.Number,
+                    dto.ToVerse
+                );
+
+                student.CurrentSurahNumber = nextSurah;
+                student.CurrentVerse = nextVerse;
+                student.JuzMemorized = _quranService.CalculateJuzMemorized(
+                    student.MemorizationDirection,
+                    nextSurah,
+                    nextVerse
+                );
+            }
+
+            var progressDate = dto.Date.Date;
+            var existingAttendance = await _context.Attendances
+                .FirstOrDefaultAsync(a =>
+                    a.StudentId == dto.StudentId &&
+                    a.HalaqaId == dto.HalaqaId &&
+                    a.Date.Date == progressDate);
+
+            if (existingAttendance == null)
+            {
+                var attendance = new Attendance
+                {
+                    StudentId = dto.StudentId,
+                    HalaqaId = dto.HalaqaId,
+                    Date = progressDate,
+                    Status = AttendanceStatus.Present,
+                    Notes = "حضور تلقائي - تم تسجيل تقدم",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Attendances.Add(attendance);
+            }
+
+            await _context.SaveChangesAsync();
+
+            var savedRecord = await _context.ProgressRecords
+                .Include(pr => pr.Student)
+                .Include(pr => pr.Teacher)
+                .Include(pr => pr.Halaqa)
+                .FirstOrDefaultAsync(pr => pr.Id == progressRecord.Id);
+
+            return MapToDto(savedRecord!);
+        }
+
+        public async Task<IEnumerable<ProgressRecordDto>> GetProgressByDateAsync(DateTime date, int? teacherId = null)
+        {
+            var query = _context.ProgressRecords
+                .Include(pr => pr.Student)
+                .Include(pr => pr.Teacher)
+                .Include(pr => pr.Halaqa)
+                .Where(pr => pr.Date.Date == date.Date);
+
+            if (teacherId.HasValue)
+            {
+                query = query.Where(pr => pr.TeacherId == teacherId.Value);
+            }
+
+            var records = await query.OrderBy(pr => pr.CreatedAt).ToListAsync();
+            return records.Select(MapToDto);
+        }
+
+        public async Task<IEnumerable<ProgressRecordDto>> GetProgressByStudentAsync(int studentId, DateTime? fromDate = null)
+        {
+            var query = _context.ProgressRecords
+                .Include(pr => pr.Student)
+                .Include(pr => pr.Teacher)
+                .Include(pr => pr.Halaqa)
+                .Where(pr => pr.StudentId == studentId);
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(pr => pr.Date >= fromDate.Value.Date);
+            }
+
+            var records = await query.OrderByDescending(pr => pr.Date).ToListAsync();
+            return records.Select(MapToDto);
+        }
+
+        public async Task<DailyProgressSummaryDto> GetDailyProgressSummaryAsync(DateTime date, int? teacherId = null)
+        {
+            var records = await GetProgressByDateAsync(date, teacherId);
+            var recordsList = records.ToList();
+
+            return new DailyProgressSummaryDto
+            {
+                Date = date.Date,
+                TotalMemorization = recordsList.Count(r => r.Type == "Memorization"),
+                TotalRevision = recordsList.Count(r => r.Type == "Revision"),
+                UniqueStudents = recordsList.Select(r => r.StudentId).Distinct().Count(),
+                Records = recordsList
+            };
+        }
+
+        public async Task<StudentProgressSummaryDto> GetStudentProgressSummaryAsync(int studentId)
+        {
+            var student = await _context.Students.FindAsync(studentId);
+            if (student == null)
+            {
+                throw new InvalidOperationException("الطالب غير موجود");
+            }
+
+            var allRecords = await _context.ProgressRecords
+                .Include(pr => pr.Teacher)
+                .Include(pr => pr.Halaqa)
+                .Where(pr => pr.StudentId == studentId)
+                .ToListAsync();
+
+            var recentRecords = allRecords
+                .OrderByDescending(pr => pr.Date)
+                .Take(10)
+                .ToList();
+
+            return new StudentProgressSummaryDto
+            {
+                StudentId = studentId,
+                StudentName = $"{student.FirstName} {student.LastName}",
+                TotalMemorized = allRecords.Count(r => r.Type == ProgressType.Memorization),
+                TotalRevised = allRecords.Count(r => r.Type == ProgressType.Revision),
+                LastProgressDate = allRecords.Any() ? allRecords.Max(r => r.Date) : DateTime.MinValue,
+                AverageQuality = allRecords.Any() ? allRecords.Average(r => (int)r.Quality) : 0,
+                RecentProgress = recentRecords.Select(MapToDto).ToList()
+            };
+        }
+
+        public async Task<bool> DeleteProgressRecordAsync(int id, int userId)
+        {
+            var record = await _context.ProgressRecords.FindAsync(id);
+            if (record == null)
+                return false;
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                return false;
+
+            if (user.Role == UserRole.Teacher && record.TeacherId != user.Teacher?.Id)
+                return false;
+
+            _context.ProgressRecords.Remove(record);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        private ProgressRecordDto MapToDto(ProgressRecord record)
+        {
+            return new ProgressRecordDto
+            {
+                Id = record.Id,
+                StudentId = record.StudentId,
+                StudentName = record.Student != null ? $"{record.Student.FirstName} {record.Student.LastName}" : "",
+                TeacherId = record.TeacherId,
+                TeacherName = record.Teacher?.FullName ?? "",
+                HalaqaId = record.HalaqaId,
+                HalaqaName = record.Halaqa?.Name ?? "",
+                Date = record.Date,
+                Type = record.Type == ProgressType.Memorization ? "حفظ جديد" : "مراجعة",
+                SurahName = record.SurahName,
+                FromVerse = record.FromVerse,
+                ToVerse = record.ToVerse,
+                Quality = record.Quality switch
+                {
+                    QualityRating.Excellent => "ممتاز",
+                    QualityRating.VeryGood => "جيد جداً",
+                    QualityRating.Good => "جيد",
+                    QualityRating.Acceptable => "مقبول",
+                    _ => ""
+                },
+                Notes = record.Notes,
+                CreatedAt = record.CreatedAt
+            };
+        }
+    }
+}
+
