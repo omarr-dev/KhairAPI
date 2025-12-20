@@ -30,7 +30,11 @@ public class Program
         {
             options.AddPolicy("NextJsPolicy", policy =>
             {
-                policy.WithOrigins("http://localhost:3000", "http://localhost:3001")
+                policy.WithOrigins(
+                        "http://localhost:3000", 
+                        "http://localhost:3001",
+                        "https://khair-frontend-three.vercel.app"
+                    )
                        .AllowAnyMethod()
                        .AllowAnyHeader()
                        .AllowCredentials();
