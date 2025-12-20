@@ -29,16 +29,15 @@ public class Program
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("NextJsPolicy", policy =>
-            {
-                policy.WithOrigins(
-                        "http://localhost:3000", 
-                        "http://localhost:3001",
-                        "https://khair-frontend-three.vercel.app"
-                    )
-                       .AllowAnyMethod()
-                       .AllowAnyHeader()
-                       .AllowCredentials();
-            });
+{
+    policy.SetIsOriginAllowed(origin => 
+            origin.StartsWith("http://localhost") || 
+            origin.Contains(".vercel.app")
+        )
+           .AllowAnyMethod()
+           .AllowAnyHeader()
+           .AllowCredentials();
+});
         });
 
         // Configure JWT Authentication
