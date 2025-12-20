@@ -10,7 +10,7 @@ namespace KhairAPI.Core.Helpers
     public interface ICurrentUserService
     {
         int? UserId { get; }
-        string? Email { get; }
+        string? PhoneNumber { get; }
         string? FullName { get; }
         string? Role { get; }
         bool IsAuthenticated { get; }
@@ -43,7 +43,7 @@ namespace KhairAPI.Core.Helpers
             }
         }
 
-        public string? Email => User?.FindFirst(ClaimTypes.Email)?.Value;
+        public string? PhoneNumber => User?.FindFirst(ClaimTypes.MobilePhone)?.Value;
 
         public string? FullName => User?.FindFirst(ClaimTypes.Name)?.Value;
 

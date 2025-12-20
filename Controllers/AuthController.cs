@@ -38,7 +38,7 @@ namespace KhairAPI.Controllers
             var result = await _authService.RegisterAsync(registerDto);
 
             if (result == null)
-                return BadRequest(new { message = AppConstants.ErrorMessages.EmailAlreadyExists });
+                return BadRequest(new { message = AppConstants.ErrorMessages.PhoneNumberAlreadyExists });
 
             return CreatedAtAction(nameof(GetCurrentUser), new { }, result);
         }
@@ -55,7 +55,7 @@ namespace KhairAPI.Controllers
             var userDto = new UserDto
             {
                 Id = _currentUserService.UserId.Value,
-                Email = _currentUserService.Email ?? "",
+                PhoneNumber = _currentUserService.PhoneNumber ?? "",
                 FullName = _currentUserService.FullName ?? "",
                 Role = _currentUserService.Role ?? "",
                 TeacherId = teacherId

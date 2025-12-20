@@ -49,7 +49,6 @@ namespace KhairAPI.Services.Implementations
             {
                 Id = h.Id,
                 Name = h.Name,
-                Description = h.Description,
                 Location = h.Location,
                 TimeSlot = h.TimeSlot,
                 ActiveDays = h.ActiveDays,
@@ -100,7 +99,6 @@ namespace KhairAPI.Services.Implementations
             var halaqa = new Halaqa
             {
                 Name = dto.Name,
-                Description = dto.Description,
                 Location = dto.Location,
                 TimeSlot = dto.TimeSlot,
                 ActiveDays = dto.ActiveDays,
@@ -115,7 +113,6 @@ namespace KhairAPI.Services.Implementations
             {
                 Id = halaqa.Id,
                 Name = halaqa.Name,
-                Description = halaqa.Description,
                 Location = halaqa.Location,
                 TimeSlot = halaqa.TimeSlot,
                 ActiveDays = halaqa.ActiveDays,
@@ -133,7 +130,6 @@ namespace KhairAPI.Services.Implementations
                 return false;
 
             halaqa.Name = dto.Name;
-            halaqa.Description = dto.Description;
             halaqa.Location = dto.Location;
             halaqa.TimeSlot = dto.TimeSlot;
             halaqa.ActiveDays = dto.ActiveDays;
@@ -168,7 +164,6 @@ namespace KhairAPI.Services.Implementations
             {
                 Id = halaqa.Id,
                 Name = halaqa.Name,
-                Description = halaqa.Description,
                 Location = halaqa.Location,
                 TimeSlot = halaqa.TimeSlot,
                 ActiveDays = halaqa.ActiveDays,

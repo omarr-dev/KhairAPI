@@ -1,14 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+using KhairAPI.Core.Attributes;
 
 namespace KhairAPI.Models.DTOs
 {
     public class LoginDto
     {
-        [Required(ErrorMessage = "البريد الإلكتروني مطلوب")]
-        [EmailAddress(ErrorMessage = "البريد الإلكتروني غير صالح")]
-        public string Email { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "كلمة المرور مطلوبة")]
-        public string Password { get; set; } = string.Empty;
+        [Required(ErrorMessage = "رقم الجوال مطلوب")]
+        [SaudiPhoneNumber(ErrorMessage = "رقم الجوال يجب أن يكون سعودي ويبدأ بـ +966 5")]
+        public string PhoneNumber { get; set; } = string.Empty;
     }
 }

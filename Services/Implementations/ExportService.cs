@@ -114,7 +114,7 @@ namespace KhairAPI.Services.Implementations
 
                 worksheet.Cell(row, 1).Value = teacher.Id;
                 worksheet.Cell(row, 2).Value = teacher.FullName;
-                worksheet.Cell(row, 3).Value = teacher.User?.Email ?? "";
+                worksheet.Cell(row, 3).Value = teacher.User?.PhoneNumber ?? "";
                 worksheet.Cell(row, 4).Value = teacher.PhoneNumber ?? "";
                 worksheet.Cell(row, 5).Value = teacher.Qualification ?? "";
                 worksheet.Cell(row, 6).Value = teacher.HalaqaTeachers.Count;

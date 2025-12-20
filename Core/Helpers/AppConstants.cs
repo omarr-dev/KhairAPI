@@ -21,8 +21,9 @@ namespace KhairAPI.Core.Helpers
         public static class ErrorMessages
         {
             // Authentication
-            public const string InvalidCredentials = "البريد الإلكتروني أو كلمة المرور غير صحيحة";
-            public const string EmailAlreadyExists = "البريد الإلكتروني مستخدم بالفعل";
+            public const string InvalidCredentials = "رقم الجوال غير صحيح";
+            public const string PhoneNumberAlreadyExists = "رقم الجوال مستخدم بالفعل";
+            public const string InvalidPhoneNumber = "رقم الجوال يجب أن يكون سعودي ويبدأ بـ +966 5";
             public const string InvalidToken = "رمز التحديث غير صالح";
             public const string Unauthorized = "غير مصرح لك بالوصول";
             public const string CannotIdentifyTeacher = "لا يمكن تحديد هوية المعلم";

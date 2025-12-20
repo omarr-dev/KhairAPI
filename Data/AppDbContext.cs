@@ -27,12 +27,10 @@ namespace KhairAPI.Data
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.HasIndex(e => e.Email).IsUnique();
-                entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
-                entity.Property(e => e.PasswordHash).IsRequired();
+                entity.HasIndex(e => e.PhoneNumber).IsUnique();
+                entity.Property(e => e.PhoneNumber).IsRequired().HasMaxLength(20);
                 entity.Property(e => e.FullName).IsRequired().HasMaxLength(255);
-                entity.Property(e => e.PhoneNumber).HasMaxLength(20);
-                
+
                 // Configure enum conversion
                 entity.Property(e => e.Role)
                     .HasConversion<string>()
@@ -59,7 +57,6 @@ namespace KhairAPI.Data
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
-                entity.Property(e => e.Description).HasMaxLength(500);
                 entity.Property(e => e.Location).HasMaxLength(255);
                 entity.Property(e => e.TimeSlot).HasMaxLength(100);
             });

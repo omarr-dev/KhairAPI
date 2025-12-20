@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using KhairAPI.Models.Entities;
-using BCrypt.Net;
 
 namespace KhairAPI.Data
 {
@@ -20,11 +19,9 @@ namespace KhairAPI.Data
             // Create supervisor user
             var supervisorUser = new User
             {
-                Email = "supervisor@khair.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Supervisor123!"),
+                PhoneNumber = "+966501234567",
                 FullName = "أحمد المشرف",
                 Role = UserRole.Supervisor,
-                PhoneNumber = "0501234567",
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -33,11 +30,9 @@ namespace KhairAPI.Data
             // Create teacher users
             var teacher1User = new User
             {
-                Email = "teacher1@khair.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Teacher123!"),
+                PhoneNumber = "+966502345678",
                 FullName = "محمد المعلم",
                 Role = UserRole.Teacher,
-                PhoneNumber = "0502345678",
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -45,11 +40,9 @@ namespace KhairAPI.Data
 
             var teacher2User = new User
             {
-                Email = "teacher2@khair.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Teacher123!"),
+                PhoneNumber = "+966553456789",
                 FullName = "عبدالله المعلم",
                 Role = UserRole.Teacher,
-                PhoneNumber = "0503456789",
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -84,7 +77,6 @@ namespace KhairAPI.Data
             var halaqa1 = new Halaqa
             {
                 Name = "حلقة الفجر",
-                Description = "حلقة تحفيظ القرآن بعد صلاة الفجر",
                 Location = "المسجد الكبير",
                 TimeSlot = "5:30 - 7:00 صباحاً",
                 IsActive = true,
@@ -95,7 +87,6 @@ namespace KhairAPI.Data
             var halaqa2 = new Halaqa
             {
                 Name = "حلقة العصر",
-                Description = "حلقة تحفيظ القرآن بعد صلاة العصر",
                 Location = "مسجد الحي",
                 TimeSlot = "4:30 - 6:00 مساءً",
                 IsActive = true,
@@ -129,9 +120,9 @@ namespace KhairAPI.Data
                 {
                     FirstName = "أحمد",
                     LastName = "محمد",
-                    DateOfBirth = new DateTime(2010, 5, 15),
+                    DateOfBirth = new DateTime(2010, 5, 15, 0, 0, 0, DateTimeKind.Utc),
                     GuardianName = "محمد أحمد",
-                    GuardianPhone = "0504567890",
+                    GuardianPhone = "+966504567890",
                     JuzMemorized = 5,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -139,9 +130,9 @@ namespace KhairAPI.Data
                 {
                     FirstName = "فاطمة",
                     LastName = "علي",
-                    DateOfBirth = new DateTime(2011, 3, 20),
+                    DateOfBirth = new DateTime(2011, 3, 20, 0, 0, 0, DateTimeKind.Utc),
                     GuardianName = "علي عبدالله",
-                    GuardianPhone = "0505678901",
+                    GuardianPhone = "+966555678901",
                     JuzMemorized = 3,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -149,9 +140,9 @@ namespace KhairAPI.Data
                 {
                     FirstName = "خالد",
                     LastName = "سعد",
-                    DateOfBirth = new DateTime(2009, 8, 10),
+                    DateOfBirth = new DateTime(2009, 8, 10, 0, 0, 0, DateTimeKind.Utc),
                     GuardianName = "سعد خالد",
-                    GuardianPhone = "0506789012",
+                    GuardianPhone = "+966506789012",
                     JuzMemorized = 8,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -159,9 +150,9 @@ namespace KhairAPI.Data
                 {
                     FirstName = "عائشة",
                     LastName = "عمر",
-                    DateOfBirth = new DateTime(2012, 1, 5),
+                    DateOfBirth = new DateTime(2012, 1, 5, 0, 0, 0, DateTimeKind.Utc),
                     GuardianName = "عمر محمد",
-                    GuardianPhone = "0507890123",
+                    GuardianPhone = "+966507890123",
                     JuzMemorized = 2,
                     CreatedAt = DateTime.UtcNow
                 }

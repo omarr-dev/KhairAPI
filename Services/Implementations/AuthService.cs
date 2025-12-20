@@ -3,7 +3,7 @@ using KhairAPI.Data;
 using KhairAPI.Models.DTOs;
 using KhairAPI.Models.Entities;
 using KhairAPI.Services.Interfaces;
-using BCrypt.Net;
+using KhairAPI.Core.Helpers;
 
 namespace KhairAPI.Services.Implementations
 {
@@ -22,30 +22,37 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<AuthResponseDto?> LoginAsync(LoginDto loginDto)
         {
+            // Format and validate phone number
+            var formattedPhone = PhoneNumberValidator.Format(loginDto.PhoneNumber);
+            if (formattedPhone == null)
+                return null;
+
             var user = await _context.Users
                 .Include(u => u.Teacher)
-                .FirstOrDefaultAsync(u => u.Email == loginDto.Email && u.IsActive);
+                .FirstOrDefaultAsync(u => u.PhoneNumber == formattedPhone && u.IsActive);
 
             if (user == null)
                 return null;
 
-            if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
-                return null;
+            // TODO: Add OTP verification here
 
             return GenerateAuthResponse(user);
         }
 
         public async Task<AuthResponseDto?> RegisterAsync(RegisterDto registerDto)
         {
-            if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
+            // Format and validate phone number
+            var formattedPhone = PhoneNumberValidator.Format(registerDto.PhoneNumber);
+            if (formattedPhone == null)
+                return null;
+
+            if (await _context.Users.AnyAsync(u => u.PhoneNumber == formattedPhone))
                 return null;
 
             var user = new User
             {
-                Email = registerDto.Email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
+                PhoneNumber = formattedPhone,
                 FullName = registerDto.FullName,
-                PhoneNumber = registerDto.PhoneNumber,
                 Role = registerDto.Role,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -60,7 +67,7 @@ namespace KhairAPI.Services.Implementations
                 {
                     UserId = user.Id,
                     FullName = registerDto.FullName,
-                    PhoneNumber = registerDto.PhoneNumber,
+                    PhoneNumber = formattedPhone,
                     Qualification = registerDto.Qualification,
                     JoinDate = DateTime.UtcNow
                 };
@@ -102,10 +109,9 @@ namespace KhairAPI.Services.Implementations
                 User = new UserDto
                 {
                     Id = user.Id,
-                    Email = user.Email,
+                    PhoneNumber = user.PhoneNumber,
                     FullName = user.FullName,
                     Role = user.Role.ToString(),
-                    PhoneNumber = user.PhoneNumber,
                     TeacherId = user.Teacher?.Id
                 }
             };

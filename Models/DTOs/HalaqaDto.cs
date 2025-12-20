@@ -8,7 +8,6 @@ namespace KhairAPI.Models.DTOs
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
         public string? Location { get; set; }
         public string? TimeSlot { get; set; }
         /// <summary>
@@ -26,7 +25,6 @@ namespace KhairAPI.Models.DTOs
         [Required(ErrorMessage = "اسم الحلقة مطلوب")]
         public string Name { get; set; } = string.Empty;
 
-        public string? Description { get; set; }
         public string? Location { get; set; }
         public string? TimeSlot { get; set; }
         /// <summary>
@@ -40,7 +38,6 @@ namespace KhairAPI.Models.DTOs
         [Required(ErrorMessage = "اسم الحلقة مطلوب")]
         public string Name { get; set; } = string.Empty;
 
-        public string? Description { get; set; }
         public string? Location { get; set; }
         public string? TimeSlot { get; set; }
         /// <summary>
@@ -57,7 +54,6 @@ namespace KhairAPI.Models.DTOs
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
         public string? Location { get; set; }
         public string? TimeSlot { get; set; }
         public string? ActiveDays { get; set; }

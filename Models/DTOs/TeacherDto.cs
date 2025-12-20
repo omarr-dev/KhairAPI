@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using KhairAPI.Core.Attributes;
 
 namespace KhairAPI.Models.DTOs
 {
@@ -8,7 +9,6 @@ namespace KhairAPI.Models.DTOs
         public int Id { get; set; }
         public int UserId { get; set; }
         public string FullName { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
         public string? PhoneNumber { get; set; }
         public string? Qualification { get; set; }
         public DateTime JoinDate { get; set; }
@@ -18,18 +18,13 @@ namespace KhairAPI.Models.DTOs
 
     public class CreateTeacherDto
     {
-        [Required(ErrorMessage = "البريد الإلكتروني مطلوب")]
-        [EmailAddress(ErrorMessage = "البريد الإلكتروني غير صالح")]
-        public string Email { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "كلمة المرور مطلوبة")]
-        [MinLength(6, ErrorMessage = "كلمة المرور يجب أن تكون 6 أحرف على الأقل")]
-        public string Password { get; set; } = string.Empty;
+        [Required(ErrorMessage = "رقم الجوال مطلوب")]
+        [SaudiPhoneNumber(ErrorMessage = "رقم الجوال يجب أن يكون سعودي ويبدأ بـ +966 5")]
+        public string PhoneNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "الاسم الكامل مطلوب")]
         public string FullName { get; set; } = string.Empty;
 
-        public string? PhoneNumber { get; set; }
         public string? Qualification { get; set; }
     }
 
@@ -38,6 +33,7 @@ namespace KhairAPI.Models.DTOs
         [Required(ErrorMessage = "الاسم الكامل مطلوب")]
         public string FullName { get; set; } = string.Empty;
 
+        [SaudiPhoneNumber(ErrorMessage = "رقم الجوال يجب أن يكون سعودي ويبدأ بـ +966 5")]
         public string? PhoneNumber { get; set; }
         public string? Qualification { get; set; }
     }

@@ -4,7 +4,6 @@ using KhairAPI.Models.DTOs;
 using KhairAPI.Models.Entities;
 using KhairAPI.Services.Interfaces;
 using KhairAPI.Core.Helpers;
-using BCrypt.Net;
 
 namespace KhairAPI.Services.Implementations
 {
@@ -42,7 +41,7 @@ namespace KhairAPI.Services.Implementations
                 var searchLower = filter.Search.ToLower();
                 query = query.Where(t =>
                     t.FullName.ToLower().Contains(searchLower) ||
-                    (t.User != null && t.User.Email.ToLower().Contains(searchLower)) ||
+                    (t.User != null && t.User.PhoneNumber.ToLower().Contains(searchLower)) ||
                     (t.PhoneNumber != null && t.PhoneNumber.Contains(searchLower))
                 );
             }
@@ -115,19 +114,24 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<TeacherDto> CreateTeacherAsync(CreateTeacherDto dto)
         {
-            // Check if email already exists
-            if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
+            // Format and validate phone number
+            var formattedPhone = PhoneNumberValidator.Format(dto.PhoneNumber);
+            if (formattedPhone == null)
             {
-                throw new InvalidOperationException(AppConstants.ErrorMessages.EmailAlreadyExists);
+                throw new InvalidOperationException(AppConstants.ErrorMessages.InvalidPhoneNumber);
+            }
+
+            // Check if phone number already exists
+            if (await _context.Users.AnyAsync(u => u.PhoneNumber == formattedPhone))
+            {
+                throw new InvalidOperationException(AppConstants.ErrorMessages.PhoneNumberAlreadyExists);
             }
 
             // Create user
             var user = new User
             {
-                Email = dto.Email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                PhoneNumber = formattedPhone,
                 FullName = dto.FullName,
-                PhoneNumber = dto.PhoneNumber,
                 Role = UserRole.Teacher,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -141,7 +145,7 @@ namespace KhairAPI.Services.Implementations
             {
                 UserId = user.Id,
                 FullName = dto.FullName,
-                PhoneNumber = dto.PhoneNumber,
+                PhoneNumber = formattedPhone,
                 Qualification = dto.Qualification,
                 JoinDate = DateTime.UtcNow
             };
@@ -154,7 +158,6 @@ namespace KhairAPI.Services.Implementations
                 Id = teacher.Id,
                 UserId = teacher.UserId,
                 FullName = teacher.FullName,
-                Email = user.Email,
                 PhoneNumber = teacher.PhoneNumber,
                 Qualification = teacher.Qualification,
                 JoinDate = teacher.JoinDate,
@@ -276,7 +279,6 @@ namespace KhairAPI.Services.Implementations
                 Id = teacher.Id,
                 UserId = teacher.UserId,
                 FullName = teacher.FullName,
-                Email = teacher.User?.Email ?? "",
                 PhoneNumber = teacher.PhoneNumber,
                 Qualification = teacher.Qualification,
                 JoinDate = teacher.JoinDate,
