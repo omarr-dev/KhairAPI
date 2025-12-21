@@ -10,9 +10,18 @@ namespace KhairAPI.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "PasswordHash",
-                table: "Users");
+            // Drop column only if it exists
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'Users' AND column_name = 'PasswordHash'
+                    ) THEN
+                        ALTER TABLE ""Users"" DROP COLUMN ""PasswordHash"";
+                    END IF;
+                END $$;
+            ");
         }
 
         /// <inheritdoc />

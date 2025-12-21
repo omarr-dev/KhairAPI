@@ -10,9 +10,18 @@ namespace KhairAPI.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "Description",
-                table: "Halaqat");
+            // Drop column only if it exists
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'Halaqat' AND column_name = 'Description'
+                    ) THEN
+                        ALTER TABLE ""Halaqat"" DROP COLUMN ""Description"";
+                    END IF;
+                END $$;
+            ");
         }
 
         /// <inheritdoc />
