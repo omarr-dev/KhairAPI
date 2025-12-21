@@ -154,13 +154,17 @@ public class Program
             DashboardTitle = "Khair - إدارة المهام المجدولة"
         });
 
-        // Apply migrations and seed data in development
-        if (app.Environment.IsDevelopment())
+        // Apply migrations automatically on startup (all environments)
+        using (var scope = app.Services.CreateScope())
         {
-            using var scope = app.Services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             dbContext.Database.Migrate();
-            await SeedData.InitializeAsync(scope.ServiceProvider);
+
+            // Seed data only in development
+            if (app.Environment.IsDevelopment())
+            {
+                await SeedData.InitializeAsync(scope.ServiceProvider);
+            }
         }
 
         // Schedule recurring job to mark absent students daily at 23:59
