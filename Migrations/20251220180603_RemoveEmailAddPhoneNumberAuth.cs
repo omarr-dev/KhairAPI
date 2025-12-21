@@ -10,14 +10,33 @@ namespace KhairAPI.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_Users_Email",
-                table: "Users");
+            // Drop index only if it exists
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_indexes
+                        WHERE indexname = 'IX_Users_Email'
+                    ) THEN
+                        DROP INDEX ""IX_Users_Email"";
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.DropColumn(
-                name: "Email",
-                table: "Users");
+            // Drop column only if it exists
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'Users' AND column_name = 'Email'
+                    ) THEN
+                        ALTER TABLE ""Users"" DROP COLUMN ""Email"";
+                    END IF;
+                END $$;
+            ");
 
+            // Alter PhoneNumber column to be required
             migrationBuilder.AlterColumn<string>(
                 name: "PhoneNumber",
                 table: "Users",
@@ -30,11 +49,18 @@ namespace KhairAPI.Migrations
                 oldMaxLength: 20,
                 oldNullable: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_PhoneNumber",
-                table: "Users",
-                column: "PhoneNumber",
-                unique: true);
+            // Create index only if it doesn't exist
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_indexes
+                        WHERE indexname = 'IX_Users_PhoneNumber'
+                    ) THEN
+                        CREATE UNIQUE INDEX ""IX_Users_PhoneNumber"" ON ""Users"" (""PhoneNumber"");
+                    END IF;
+                END $$;
+            ");
         }
 
         /// <inheritdoc />
