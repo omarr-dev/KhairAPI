@@ -31,7 +31,7 @@ namespace KhairAPI.Services.Implementations
                 {
                     StudentId = dto.StudentId,
                     HalaqaId = dto.HalaqaId,
-                    Date = dto.Date.Date,
+                    Date = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc),
                     Status = dto.Status,
                     Notes = dto.Notes,
                     CreatedAt = DateTime.UtcNow
@@ -52,7 +52,7 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> CreateBulkAttendanceAsync(BulkAttendanceDto dto)
         {
-            var date = dto.Date.Date;
+            var date = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc);
 
             var existingAttendance = await _context.Attendances
                 .Where(a => a.HalaqaId == dto.HalaqaId && a.Date == date)

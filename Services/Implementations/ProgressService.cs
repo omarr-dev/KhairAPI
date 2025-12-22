@@ -48,7 +48,7 @@ namespace KhairAPI.Services.Implementations
                 StudentId = dto.StudentId,
                 TeacherId = dto.TeacherId,
                 HalaqaId = dto.HalaqaId,
-                Date = dto.Date.Date,
+                Date = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc),
                 Type = dto.Type,
                 SurahName = dto.SurahName,
                 FromVerse = dto.FromVerse,
@@ -77,7 +77,7 @@ namespace KhairAPI.Services.Implementations
                 );
             }
 
-            var progressDate = dto.Date.Date;
+            var progressDate = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc);
             var existingAttendance = await _context.Attendances
                 .FirstOrDefaultAsync(a =>
                     a.StudentId == dto.StudentId &&

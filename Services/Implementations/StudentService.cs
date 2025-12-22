@@ -275,7 +275,9 @@ namespace KhairAPI.Services.Implementations
             {
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
-                DateOfBirth = dto.DateOfBirth,
+                DateOfBirth = dto.DateOfBirth.HasValue
+                    ? DateTime.SpecifyKind(dto.DateOfBirth.Value, DateTimeKind.Utc)
+                    : null,
                 GuardianName = dto.GuardianName,
                 GuardianPhone = dto.GuardianPhone,
                 MemorizationDirection = direction,
@@ -314,7 +316,9 @@ namespace KhairAPI.Services.Implementations
 
             student.FirstName = dto.FirstName;
             student.LastName = dto.LastName;
-            student.DateOfBirth = dto.DateOfBirth;
+            student.DateOfBirth = dto.DateOfBirth.HasValue
+                ? DateTime.SpecifyKind(dto.DateOfBirth.Value, DateTimeKind.Utc)
+                : null;
             student.GuardianName = dto.GuardianName;
             student.GuardianPhone = dto.GuardianPhone;
 
