@@ -546,66 +546,6 @@ namespace KhairAPI.Services.Implementations
                 .Take(limit)
                 .ToList();
         }
-
-        public async Task<List<AttendanceTrendDto>> GetAttendanceTrendsAsync(int days = 30)
-        {
-            var today = DateTime.UtcNow.Date;
-            var fromDate = today.AddDays(-days);
-            var trends = new List<AttendanceTrendDto>();
-
-            var attendances = await _context.Attendances
-                .Where(a => a.Date >= fromDate && a.Date <= today)
-                .ToListAsync();
-
-            for (var date = fromDate; date <= today; date = date.AddDays(1))
-            {
-                var dayAttendance = attendances.Where(a => a.Date == date).ToList();
-                var total = dayAttendance.Count;
-                var present = dayAttendance.Count(a => a.Status == AttendanceStatus.Present);
-                var absent = dayAttendance.Count(a => a.Status == AttendanceStatus.Absent);
-                var late = dayAttendance.Count(a => a.Status == AttendanceStatus.Late);
-
-                trends.Add(new AttendanceTrendDto
-                {
-                    Date = date.ToString("yyyy-MM-dd"),
-                    TotalStudents = total,
-                    Present = present,
-                    Absent = absent,
-                    Late = late,
-                    Rate = total > 0 ? Math.Round((double)present / total * 100, 1) : 0
-                });
-            }
-
-            return trends;
-        }
-
-        public async Task<List<ProgressTrendDto>> GetProgressTrendsAsync(int days = 30)
-        {
-            var today = DateTime.UtcNow.Date;
-            var fromDate = today.AddDays(-days);
-            var trends = new List<ProgressTrendDto>();
-
-            var progressRecords = await _context.ProgressRecords
-                .Where(p => p.Date >= fromDate && p.Date <= today)
-                .ToListAsync();
-
-            for (var date = fromDate; date <= today; date = date.AddDays(1))
-            {
-                var dayProgress = progressRecords.Where(p => p.Date == date).ToList();
-                var memorization = dayProgress.Where(p => p.Type == ProgressType.Memorization).ToList();
-                var revision = dayProgress.Where(p => p.Type == ProgressType.Revision).ToList();
-
-                trends.Add(new ProgressTrendDto
-                {
-                    Date = date.ToString("yyyy-MM-dd"),
-                    Memorization = memorization.Count,
-                    Revision = revision.Count,
-                    TotalVerses = dayProgress.Sum(p => p.ToVerse - p.FromVerse + 1)
-                });
-            }
-
-            return trends;
-        }
     }
 }
 

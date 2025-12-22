@@ -94,24 +94,6 @@ namespace KhairAPI.Models.DTOs
         public int ConsecutiveAbsences { get; set; }
     }
 
-    public class AttendanceTrendDto
-    {
-        public string Date { get; set; } = string.Empty;
-        public int TotalStudents { get; set; }
-        public int Present { get; set; }
-        public int Absent { get; set; }
-        public int Late { get; set; }
-        public double Rate { get; set; }
-    }
-
-    public class ProgressTrendDto
-    {
-        public string Date { get; set; } = string.Empty;
-        public int Memorization { get; set; }
-        public int Revision { get; set; }
-        public int TotalVerses { get; set; }
-    }
-
     /// <summary>
     /// System-wide statistics for motivation section (all halaqat combined)
     /// </summary>

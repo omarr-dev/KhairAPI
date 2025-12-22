@@ -13,8 +13,6 @@ namespace KhairAPI.Services.Interfaces
         Task<List<TeacherRankingDto>> GetTeacherRankingAsync(int days = 7, int limit = 10);
         Task<List<AtRiskStudentDto>> GetAtRiskStudentsAsync(int limit = 20);
         Task<List<AtRiskStudentDto>> GetTeacherAtRiskStudentsAsync(int teacherId, int limit = 10);
-        Task<List<AttendanceTrendDto>> GetAttendanceTrendsAsync(int days = 30);
-        Task<List<ProgressTrendDto>> GetProgressTrendsAsync(int days = 30);
     }
 }
 

@@ -115,21 +115,5 @@ namespace KhairAPI.Controllers
             var atRiskStudents = await _statisticsService.GetTeacherAtRiskStudentsAsync(teacherId.Value, limit);
                 return Ok(atRiskStudents);
         }
-
-        [HttpGet("attendance-trends")]
-        [Authorize(Policy = "SupervisorOnly")]
-        public async Task<IActionResult> GetAttendanceTrends([FromQuery] int days = 30)
-        {
-            var trends = await _statisticsService.GetAttendanceTrendsAsync(days);
-                return Ok(trends);
-        }
-
-        [HttpGet("progress-trends")]
-        [Authorize(Policy = "SupervisorOnly")]
-        public async Task<IActionResult> GetProgressTrends([FromQuery] int days = 30)
-        {
-            var trends = await _statisticsService.GetProgressTrendsAsync(days);
-                return Ok(trends);
-        }
     }
 }
