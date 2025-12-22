@@ -25,7 +25,7 @@ namespace KhairAPI.Models.Entities
         // Navigation property
         public Teacher? Teacher { get; set; }
     }
-    
+
     public enum UserRole
     {
         Teacher,
