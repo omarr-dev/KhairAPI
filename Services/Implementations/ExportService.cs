@@ -25,6 +25,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
                 .AsQueryable();
 
             if (halaqaId.HasValue)
@@ -86,6 +87,7 @@ namespace KhairAPI.Services.Implementations
                 .Include(t => t.HalaqaTeachers)
                     .ThenInclude(ht => ht.Halaqa)
                 .Include(t => t.StudentHalaqat)
+                .AsSplitQuery()
                 .AsQueryable();
 
             if (halaqaId.HasValue)
@@ -136,6 +138,7 @@ namespace KhairAPI.Services.Implementations
             var query = _context.Attendances
                 .Include(a => a.Student)
                 .Include(a => a.Halaqa)
+                .AsSplitQuery()
                 .Where(a => a.Date >= fromDate && a.Date <= toDate);
 
             if (halaqaId.HasValue)
@@ -224,6 +227,7 @@ namespace KhairAPI.Services.Implementations
                 .Where(h => h.IsActive)
                 .Include(h => h.StudentHalaqat)
                 .Include(h => h.HalaqaTeachers)
+                .AsSplitQuery()
                 .ToListAsync();
 
             var attendances = await _context.Attendances
@@ -357,6 +361,7 @@ namespace KhairAPI.Services.Implementations
             var teachers = await _context.Teachers
                 .Include(t => t.HalaqaTeachers)
                     .ThenInclude(ht => ht.Halaqa)
+                .AsSplitQuery()
                 .Where(t => t.HalaqaTeachers.Any())
                 .OrderBy(t => t.FullName)
                 .ToListAsync();

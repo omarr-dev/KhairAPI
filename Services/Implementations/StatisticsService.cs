@@ -45,6 +45,7 @@ namespace KhairAPI.Services.Implementations
             var halaqatStats = await _context.Halaqat
                 .GroupBy(h => 1)
                 .Select(g => new { Total = g.Count(), Active = g.Count(h => h.IsActive) })
+                .OrderBy(x => 1)
                 .FirstOrDefaultAsync();
 
             var todayProgress = await progressQuery.ToListAsync();
@@ -57,6 +58,7 @@ namespace KhairAPI.Services.Implementations
                     Present = g.Count(a => a.Status == AttendanceStatus.Present),
                     Total = g.Count()
                 })
+                .OrderBy(x => 1)
                 .FirstOrDefaultAsync();
 
             var totalHalaqat = halaqatStats?.Total ?? 0;

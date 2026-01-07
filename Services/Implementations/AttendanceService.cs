@@ -18,6 +18,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<AttendanceRecordDto> CreateAttendanceAsync(CreateAttendanceDto dto)
         {
             var existingAttendance = await _context.Attendances
+                .OrderBy(a => a.Id)
                 .FirstOrDefaultAsync(a => a.StudentId == dto.StudentId && a.Date.Date == dto.Date.Date);
 
             if (existingAttendance != null)
@@ -45,6 +46,8 @@ namespace KhairAPI.Services.Implementations
             var savedAttendance = await _context.Attendances
                 .Include(a => a.Student)
                 .Include(a => a.Halaqa)
+                .AsSplitQuery()
+                .OrderBy(a => a.Id)
                 .FirstOrDefaultAsync(a => a.StudentId == dto.StudentId && a.Date.Date == dto.Date.Date);
 
             return MapToDto(savedAttendance!);
@@ -168,6 +171,7 @@ namespace KhairAPI.Services.Implementations
             var query = _context.Attendances
                 .Include(a => a.Student)
                 .Include(a => a.Halaqa)
+                .AsSplitQuery()
                 .Where(a => a.StudentId == studentId);
 
             if (fromDate.HasValue)

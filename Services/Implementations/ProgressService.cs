@@ -20,6 +20,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto)
         {
             var studentAssignment = await _context.StudentHalaqat
+                .OrderBy(sh => sh.StudentId).ThenBy(sh => sh.HalaqaId).ThenBy(sh => sh.TeacherId)
                 .FirstOrDefaultAsync(sh =>
                     sh.StudentId == dto.StudentId &&
                     sh.HalaqaId == dto.HalaqaId &&
@@ -79,6 +80,7 @@ namespace KhairAPI.Services.Implementations
 
             var progressDate = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc);
             var existingAttendance = await _context.Attendances
+                .OrderBy(a => a.Id)
                 .FirstOrDefaultAsync(a =>
                     a.StudentId == dto.StudentId &&
                     a.HalaqaId == dto.HalaqaId &&
@@ -104,6 +106,8 @@ namespace KhairAPI.Services.Implementations
                 .Include(pr => pr.Student)
                 .Include(pr => pr.Teacher)
                 .Include(pr => pr.Halaqa)
+                .AsSplitQuery()
+                .OrderBy(pr => pr.Id)
                 .FirstOrDefaultAsync(pr => pr.Id == progressRecord.Id);
 
             return MapToDto(savedRecord!);
@@ -115,6 +119,7 @@ namespace KhairAPI.Services.Implementations
                 .Include(pr => pr.Student)
                 .Include(pr => pr.Teacher)
                 .Include(pr => pr.Halaqa)
+                .AsSplitQuery()
                 .Where(pr => pr.Date.Date == date.Date);
 
             if (teacherId.HasValue)
@@ -132,6 +137,7 @@ namespace KhairAPI.Services.Implementations
                 .Include(pr => pr.Student)
                 .Include(pr => pr.Teacher)
                 .Include(pr => pr.Halaqa)
+                .AsSplitQuery()
                 .Where(pr => pr.StudentId == studentId);
 
             if (fromDate.HasValue)
@@ -169,6 +175,7 @@ namespace KhairAPI.Services.Implementations
             var allRecords = await _context.ProgressRecords
                 .Include(pr => pr.Teacher)
                 .Include(pr => pr.Halaqa)
+                .AsSplitQuery()
                 .Where(pr => pr.StudentId == studentId)
                 .ToListAsync();
 

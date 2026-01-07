@@ -30,6 +30,7 @@ namespace KhairAPI.Services.Implementations
             var user = await _context.Users
                 .Include(u => u.Teacher)
                 .AsSplitQuery()
+                .OrderBy(u => u.Id)
                 .FirstOrDefaultAsync(u => u.PhoneNumber == formattedPhone && u.IsActive);
 
             if (user == null)
@@ -80,6 +81,7 @@ namespace KhairAPI.Services.Implementations
             user = await _context.Users
                 .Include(u => u.Teacher)
                 .AsSplitQuery()
+                .OrderBy(u => u.Id)
                 .FirstOrDefaultAsync(u => u.Id == user.Id);
 
             return GenerateAuthResponse(user!);

@@ -24,6 +24,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
                 .ToListAsync();
 
             return students.Select(MapToDto);
@@ -36,6 +37,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -95,6 +97,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
                 .Where(s => s.StudentHalaqat.Any(sh => sh.HalaqaId == halaqaId && sh.IsActive))
                 .ToListAsync();
 
@@ -108,6 +111,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
                 .Where(s => s.StudentHalaqat.Any(sh => sh.TeacherId == teacherId && sh.IsActive))
                 .ToListAsync();
 
@@ -121,6 +125,8 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
+                .OrderBy(s => s.Id)
                 .FirstOrDefaultAsync(s => s.Id == id);
 
             return student != null ? MapToDto(student) : null;
@@ -133,6 +139,8 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
+                .OrderBy(s => s.Id)
                 .FirstOrDefaultAsync(s => s.Id == id);
 
             if (student == null)
@@ -141,23 +149,20 @@ namespace KhairAPI.Services.Implementations
             var activeAssignment = student.StudentHalaqat.FirstOrDefault(sh => sh.IsActive);
             var halaqaId = activeAssignment?.HalaqaId;
 
-            var progressRecords = await _context.ProgressRecords
+            var allProgressRecords = await _context.ProgressRecords
                 .Where(p => p.StudentId == id)
                 .OrderByDescending(p => p.Date)
-                .Take(20)
                 .Include(p => p.Teacher)
                 .Include(p => p.Halaqa)
                 .ToListAsync();
+
+            var progressRecords = allProgressRecords.Take(20).ToList();
 
             var sixtyDaysAgo = DateTime.UtcNow.AddDays(-60);
             var attendanceRecords = await _context.Attendances
                 .Where(a => a.StudentId == id && a.Date >= sixtyDaysAgo)
                 .OrderByDescending(a => a.Date)
                 .Include(a => a.Halaqa)
-                .ToListAsync();
-
-            var allProgressRecords = await _context.ProgressRecords
-                .Where(p => p.StudentId == id)
                 .ToListAsync();
 
             var memorizationRecords = allProgressRecords.Where(p => p.Type == ProgressType.Memorization).ToList();
@@ -482,6 +487,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(searchTerm))

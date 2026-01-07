@@ -30,79 +30,72 @@ namespace KhairAPI.Services.Implementations
             _logger.LogInformation("Processing absent records for date: {Date}, DayOfWeek: {DayOfWeek}",
                 targetDate.ToString("yyyy-MM-dd"), dayOfWeek);
 
+            // 1. Get all active halaqat and their active days
             var halaqat = await context.Halaqat
                 .Where(h => h.IsActive && h.ActiveDays != null)
                 .ToListAsync();
 
-            foreach (var halaqa in halaqat)
+            // 2. Filter halaqat that are active today (in-memory parsing of ActiveDays string)
+            var targetHalaqaIds = halaqat
+                .Where(h => ParseActiveDays(h.ActiveDays).Contains(dayOfWeek))
+                .Select(h => h.Id)
+                .ToList();
+
+            if (!targetHalaqaIds.Any())
             {
-                var activeDays = ParseActiveDays(halaqa.ActiveDays);
+                _logger.LogInformation("No active halaqat for today: {Date}", targetDate.ToString("yyyy-MM-dd"));
+                return 0;
+            }
 
-                if (!activeDays.Contains(dayOfWeek))
+            // 3. Find students in these halaqat who don't have an attendance record for target date
+            // Using a single query to find missing attendance records to avoid N+1 issues
+            var studentsMissingAttendance = await context.StudentHalaqat
+                .Where(sh => targetHalaqaIds.Contains(sh.HalaqaId) && sh.IsActive)
+                .Where(sh => !context.Attendances.Any(a => a.Date == targetDate && a.StudentId == sh.StudentId))
+                .Select(sh => new { sh.StudentId, sh.HalaqaId })
+                .ToListAsync();
+
+            if (!studentsMissingAttendance.Any())
+            {
+                _logger.LogInformation("All students already have attendance records for {Date}", targetDate.ToString("yyyy-MM-dd"));
+                return 0;
+            }
+
+            // 4. Group by StudentId to ensure each student gets only one attendance record
+            // (Database constraint IX_Attendances_StudentId_Date allows only one per day)
+            var uniqueStudentsMissingAttendance = studentsMissingAttendance
+                .GroupBy(x => x.StudentId)
+                .Select(g => g.First())
+                .ToList();
+
+            foreach (var record in uniqueStudentsMissingAttendance)
+            {
+                var attendance = new Attendance
                 {
-                    _logger.LogDebug("Skipping Halaqa {HalaqaId} ({HalaqaName}) - not an active day",
-                        halaqa.Id, halaqa.Name);
-                    continue;
+                    StudentId = record.StudentId,
+                    HalaqaId = record.HalaqaId,
+                    Date = targetDate,
+                    Status = AttendanceStatus.Absent,
+                    Notes = "تم التسجيل تلقائياً - غياب",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                context.Attendances.Add(attendance);
+                totalCreated++;
+            }
+
+            if (totalCreated > 0)
+            {
+                try
+                {
+                    await context.SaveChangesAsync();
+                    _logger.LogInformation("Successfully created {Count} absent records for {Date}",
+                        totalCreated, targetDate.ToString("yyyy-MM-dd"));
                 }
-
-                _logger.LogInformation("Processing Halaqa {HalaqaId} ({HalaqaName}) for date {Date}",
-                    halaqa.Id, halaqa.Name, targetDate.ToString("yyyy-MM-dd"));
-
-                var studentIds = await context.StudentHalaqat
-                    .Where(sh => sh.HalaqaId == halaqa.Id && sh.IsActive)
-                    .Select(sh => sh.StudentId)
-                    .ToListAsync();
-
-                if (!studentIds.Any())
+                catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("IX_Attendances_StudentId_Date") == true)
                 {
-                    _logger.LogDebug("No active students in Halaqa {HalaqaId}", halaqa.Id);
-                    continue;
-                }
-
-                var studentsWithAttendance = await context.Attendances
-                    .Where(a => a.Date == targetDate && studentIds.Contains(a.StudentId))
-                    .Select(a => a.StudentId)
-                    .ToListAsync();
-
-                var studentsWithoutAttendance = studentIds
-                    .Except(studentsWithAttendance)
-                    .ToList();
-
-                if (!studentsWithoutAttendance.Any())
-                {
-                    _logger.LogDebug("All students in Halaqa {HalaqaId} have attendance records", halaqa.Id);
-                    continue;
-                }
-
-                foreach (var studentId in studentsWithoutAttendance)
-                {
-                    var attendance = new Attendance
-                    {
-                        StudentId = studentId,
-                        HalaqaId = halaqa.Id,
-                        Date = targetDate,
-                        Status = AttendanceStatus.Absent,
-                        Notes = "تم التسجيل تلقائياً - غياب",
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    context.Attendances.Add(attendance);
-                    totalCreated++;
-                }
-
-                if (studentsWithoutAttendance.Any())
-                {
-                    try
-                    {
-                        await context.SaveChangesAsync();
-                        _logger.LogInformation("Created {Count} absent records for Halaqa {HalaqaId}",
-                            studentsWithoutAttendance.Count, halaqa.Id);
-                    }
-                    catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("IX_Attendances_StudentId_Date") == true)
-                    {
-                        _logger.LogDebug("Some students in Halaqa {HalaqaId} already have attendance records (duplicate key)", halaqa.Id);
-                        context.ChangeTracker.Clear();
-                    }
+                    _logger.LogWarning("Some attendance records were already created by another process for {Date}. Skipping duplicates.",
+                        targetDate.ToString("yyyy-MM-dd"));
                 }
             }
 

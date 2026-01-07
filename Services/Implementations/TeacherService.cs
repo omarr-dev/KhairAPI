@@ -22,6 +22,7 @@ namespace KhairAPI.Services.Implementations
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                 .Include(t => t.StudentHalaqat)
+                .AsSplitQuery()
                 .ToListAsync();
 
             return teachers.Select(MapToDto);
@@ -33,6 +34,7 @@ namespace KhairAPI.Services.Implementations
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                 .Include(t => t.StudentHalaqat)
+                .AsSplitQuery()
                 .AsQueryable();
 
             // Apply search filter
@@ -93,6 +95,8 @@ namespace KhairAPI.Services.Implementations
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                 .Include(t => t.StudentHalaqat)
+                .AsSplitQuery()
+                .OrderBy(t => t.Id)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             return teacher == null ? null : MapToDto(teacher);
@@ -106,6 +110,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(t => t.User)
                 .Include(ht => ht.Teacher.HalaqaTeachers)
                 .Include(ht => ht.Teacher.StudentHalaqat)
+                .AsSplitQuery()
                 .Select(ht => ht.Teacher)
                 .ToListAsync();
 
@@ -170,6 +175,7 @@ namespace KhairAPI.Services.Implementations
         {
             var teacher = await _context.Teachers
                 .Include(t => t.User)
+                .OrderBy(t => t.Id)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (teacher == null)
@@ -193,6 +199,7 @@ namespace KhairAPI.Services.Implementations
         {
             var teacher = await _context.Teachers
                 .Include(t => t.User)
+                .OrderBy(t => t.Id)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (teacher == null)
@@ -220,6 +227,7 @@ namespace KhairAPI.Services.Implementations
                 throw new KeyNotFoundException(AppConstants.ErrorMessages.HalaqaNotFound);
 
             var existingAssignment = await _context.HalaqaTeachers
+                .OrderBy(ht => ht.HalaqaId).ThenBy(ht => ht.TeacherId)
                 .FirstOrDefaultAsync(ht => ht.TeacherId == teacherId && ht.HalaqaId == halaqaId);
 
             if (existingAssignment != null)
@@ -261,6 +269,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<bool> RemoveTeacherFromHalaqaAsync(int teacherId, int halaqaId)
         {
             var assignment = await _context.HalaqaTeachers
+                .OrderBy(ht => ht.HalaqaId).ThenBy(ht => ht.TeacherId)
                 .FirstOrDefaultAsync(ht => ht.TeacherId == teacherId && ht.HalaqaId == halaqaId);
 
             if (assignment == null)

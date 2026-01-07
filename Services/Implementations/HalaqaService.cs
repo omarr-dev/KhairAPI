@@ -22,7 +22,8 @@ namespace KhairAPI.Services.Implementations
         {
             IQueryable<Halaqa> query = _context.Halaqat
                 .Include(h => h.StudentHalaqat)
-                .Include(h => h.HalaqaTeachers);
+                .Include(h => h.HalaqaTeachers)
+                .AsSplitQuery();
 
             if (teacherId.HasValue)
             {
@@ -41,6 +42,7 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(ht => ht.Teacher)
                 .Include(h => h.StudentHalaqat)
                     .ThenInclude(sh => sh.Student)
+                .AsSplitQuery()
                 .Where(h => h.IsActive)
                 .OrderBy(h => h.Name)
                 .ToListAsync();
@@ -89,6 +91,8 @@ namespace KhairAPI.Services.Implementations
             var halaqa = await _context.Halaqat
                 .Include(h => h.StudentHalaqat)
                 .Include(h => h.HalaqaTeachers)
+                .AsSplitQuery()
+                .OrderBy(h => h.Id)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
             return halaqa == null ? null : MapToDto(halaqa);
@@ -143,6 +147,7 @@ namespace KhairAPI.Services.Implementations
         {
             var halaqa = await _context.Halaqat
                 .Include(h => h.StudentHalaqat)
+                .OrderBy(h => h.Id)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
             if (halaqa == null)

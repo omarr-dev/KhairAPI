@@ -26,6 +26,7 @@ namespace KhairAPI.Services.Implementations
                 .Where(h => h.IsActive)
                 .Include(h => h.HalaqaTeachers)
                     .ThenInclude(ht => ht.Teacher)
+                .AsSplitQuery()
                 .OrderBy(h => h.Name)
                 .ToListAsync();
 
@@ -129,6 +130,7 @@ namespace KhairAPI.Services.Implementations
             foreach (var entry in dto.Attendance)
             {
                 var halaqaTeacher = await _context.HalaqaTeachers
+                    .OrderBy(ht => ht.HalaqaId).ThenBy(ht => ht.TeacherId)
                     .FirstOrDefaultAsync(ht => ht.TeacherId == entry.TeacherId && ht.HalaqaId == entry.HalaqaId);
 
                 if (halaqaTeacher == null)
@@ -137,6 +139,7 @@ namespace KhairAPI.Services.Implementations
                 }
 
                 var existingAttendance = await _context.TeacherAttendances
+                    .OrderBy(ta => ta.Id)
                     .FirstOrDefaultAsync(ta =>
                         ta.TeacherId == entry.TeacherId &&
                         ta.HalaqaId == entry.HalaqaId &&
@@ -249,6 +252,7 @@ namespace KhairAPI.Services.Implementations
             var teachers = await _context.Teachers
                 .Include(t => t.HalaqaTeachers)
                     .ThenInclude(ht => ht.Halaqa)
+                .AsSplitQuery()
                 .Where(t => t.HalaqaTeachers.Any())
                 .OrderBy(t => t.FullName)
                 .ToListAsync();
