@@ -300,23 +300,38 @@ namespace KhairAPI.Services.Implementations
                 worksheet.Cell(1, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
             }
 
+            var today = DateTime.UtcNow.Date;
+            var teachersByFullName = teachers.OrderBy(t => t.FullName).ToList();
+            var teacherIds = teachers.Select(t => t.Id).ToList();
+
+            // Bulk load all attendance for the target date range for all students of these teachers
+            // To be precise, we fetch all attendance for the period and filter in-memory
+            var allAttendances = await _context.Attendances
+                .Where(a => a.Date >= fromDate && a.Date <= toDate)
+                .ToListAsync();
+
+            // Bulk load all progress records for these teachers in the date range
+            var allProgressRecords = await _context.ProgressRecords
+                .Where(p => p.Date >= fromDate && p.Date <= toDate && p.TeacherId != null && teacherIds.Contains(p.TeacherId.Value))
+                .ToListAsync();
+
             int row = 2;
-            foreach (var teacher in teachers.OrderBy(t => t.FullName))
+            foreach (var teacher in teachersByFullName)
             {
-                var studentIds = teacher.StudentHalaqat
+                var teacherStudentIds = teacher.StudentHalaqat
                     .Where(sh => sh.IsActive)
                     .Select(sh => sh.StudentId)
+                    .ToHashSet();
+
+                if (!teacherStudentIds.Any()) continue;
+
+                var studentAttendance = allAttendances
+                    .Where(a => teacherStudentIds.Contains(a.StudentId))
                     .ToList();
 
-                if (!studentIds.Any()) continue;
-
-                var studentAttendance = await _context.Attendances
-                    .Where(a => a.Date >= fromDate && a.Date <= toDate && studentIds.Contains(a.StudentId))
-                    .ToListAsync();
-
-                var teacherProgress = await _context.ProgressRecords
-                    .Where(p => p.Date >= fromDate && p.Date <= toDate && p.TeacherId == teacher.Id)
-                    .ToListAsync();
+                var teacherProgress = allProgressRecords
+                    .Where(p => p.TeacherId == teacher.Id)
+                    .ToList();
 
                 var attendanceRate = studentAttendance.Any()
                     ? (double)studentAttendance.Count(a => a.Status == AttendanceStatus.Present) / studentAttendance.Count * 100
@@ -336,7 +351,7 @@ namespace KhairAPI.Services.Implementations
                 };
 
                 worksheet.Cell(row, 1).Value = teacher.FullName;
-                worksheet.Cell(row, 2).Value = studentIds.Count;
+                worksheet.Cell(row, 2).Value = teacherStudentIds.Count;
                 worksheet.Cell(row, 3).Value = $"{attendanceRate:F1}%";
                 worksheet.Cell(row, 4).Value = teacherProgress.Count;
                 worksheet.Cell(row, 5).Value = teacherProgress.Count(p => p.Type == ProgressType.Memorization);

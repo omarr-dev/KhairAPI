@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using KhairAPI.Data;
 using KhairAPI.Models.Entities;
 using KhairAPI.Services.Interfaces;
+using Hangfire;
 
 namespace KhairAPI.Services.Implementations
 {
@@ -18,12 +19,15 @@ namespace KhairAPI.Services.Implementations
             _logger = logger;
         }
 
-        public async Task<int> MarkAbsentForMissingAttendanceAsync(DateTime date)
+        [DisableConcurrentExecution(timeoutInSeconds: 3600)]
+        [JobDisplayName("تسجيل غياب الطلاب التلقائي")]
+        public async Task<int> MarkAbsentForMissingAttendanceAsync(DateTime? date = null)
         {
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            var targetDate = date.Date;
+            // If date is null, use the current date in the local timezone (usually what's expected for daily jobs)
+            var targetDate = (date ?? DateTime.UtcNow).Date;
             var dayOfWeek = (int)targetDate.DayOfWeek;
             var totalCreated = 0;
 

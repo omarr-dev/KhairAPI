@@ -30,8 +30,8 @@ public class Program
         {
             options.AddPolicy("NextJsPolicy", policy =>
 {
-    policy.SetIsOriginAllowed(origin => 
-            origin.StartsWith("http://localhost") || 
+    policy.SetIsOriginAllowed(origin =>
+            origin.StartsWith("http://localhost") ||
             origin.Contains(".vercel.app")
         )
            .AllowAnyMethod()
@@ -114,14 +114,7 @@ public class Program
         builder.Services.AddApplicationServices();
 
         // Configure Hangfire with PostgreSQL storage
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-        builder.Services.AddHangfire(configuration => configuration
-            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-            .UseSimpleAssemblyNameTypeSerializer()
-            .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
-
-        builder.Services.AddHangfireServer();
+        builder.Services.AddHangfireServices(builder.Configuration);
 
         var app = builder.Build();
 
@@ -167,14 +160,14 @@ public class Program
             }
         }
 
-        // Schedule recurring job to mark absent students daily at 23:59
+        // Schedule recurring job to mark absent students daily at 23:59 KSA time
         RecurringJob.AddOrUpdate<IAttendanceBackgroundService>(
             "mark-absent-students",
-            service => service.MarkAbsentForMissingAttendanceAsync(DateTime.UtcNow.Date),
+            service => service.MarkAbsentForMissingAttendanceAsync(null),
             "59 23 * * *",
             new RecurringJobOptions
             {
-                TimeZone = TimeZoneInfo.Local
+                TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time")
             });
 
         app.Run();

@@ -34,7 +34,7 @@ namespace KhairAPI.Core.Extensions
         public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
         {
             var jwtSettings = configuration.GetSection("JwtSettings");
-            var secretKey = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"] 
+            var secretKey = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]
                 ?? throw new InvalidOperationException("JWT Secret Key not configured"));
 
             services.AddAuthentication(options =>
@@ -59,9 +59,9 @@ namespace KhairAPI.Core.Extensions
 
             services.AddAuthorization(options =>
             {
-                options.AddPolicy(AppConstants.Policies.SupervisorOnly, 
+                options.AddPolicy(AppConstants.Policies.SupervisorOnly,
                     policy => policy.RequireRole(AppConstants.Roles.Supervisor));
-                options.AddPolicy(AppConstants.Policies.TeacherOrSupervisor, 
+                options.AddPolicy(AppConstants.Policies.TeacherOrSupervisor,
                     policy => policy.RequireRole(AppConstants.Roles.Teacher, AppConstants.Roles.Supervisor));
             });
 
@@ -137,12 +137,15 @@ namespace KhairAPI.Core.Extensions
         public static IServiceCollection AddHangfireServices(this IServiceCollection services, IConfiguration configuration)
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
-            
+
             services.AddHangfire(config => config
                 .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
                 .UseSimpleAssemblyNameTypeSerializer()
                 .UseRecommendedSerializerSettings()
-                .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
+                .UsePostgreSqlStorage(action => action.UseNpgsqlConnection(connectionString), new PostgreSqlStorageOptions
+                {
+                    QueuePollInterval = TimeSpan.FromSeconds(15)
+                }));
 
             services.AddHangfireServer();
 
@@ -167,7 +170,7 @@ namespace KhairAPI.Core.Extensions
             services.AddSingleton<IQuranService, QuranService>();
             services.AddScoped<IAttendanceBackgroundService, AttendanceBackgroundService>();
             services.AddScoped<IExportService, ExportService>();
-            
+
             // New services
             services.AddScoped<ITeacherService, TeacherService>();
             services.AddScoped<IHalaqaService, HalaqaService>();

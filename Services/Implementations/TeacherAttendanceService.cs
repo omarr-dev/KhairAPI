@@ -113,42 +113,56 @@ namespace KhairAPI.Services.Implementations
 
             var entriesByHalaqa = dto.Attendance.GroupBy(a => a.HalaqaId);
 
-            foreach (var group in entriesByHalaqa)
-            {
-                var halaqa = await _context.Halaqat.FindAsync(group.Key);
-                if (halaqa == null)
-                {
-                    throw new KeyNotFoundException($"{AppConstants.ErrorMessages.HalaqaNotFound}: {group.Key}");
-                }
+            // 1. Validate all halaqat in bulk
+            var targetHalaqaIds = entriesByHalaqa.Select(g => g.Key).ToList();
+            var halaqat = await _context.Halaqat
+                .Where(h => targetHalaqaIds.Contains(h.Id))
+                .ToListAsync();
 
+            if (halaqat.Count != targetHalaqaIds.Count)
+            {
+                throw new KeyNotFoundException(AppConstants.ErrorMessages.HalaqaNotFound);
+            }
+
+            foreach (var halaqa in halaqat)
+            {
                 if (!IsHalaqaActiveToday(halaqa.ActiveDays, dayOfWeek))
                 {
                     throw new InvalidOperationException($"الحلقة '{halaqa.Name}' غير نشطة اليوم");
                 }
             }
 
+            // 2. Load all HalaqaTeachers assignments in bulk to validate
+            var teacherIds = dto.Attendance.Select(a => a.TeacherId).Distinct().ToList();
+            var assignments = await _context.HalaqaTeachers
+                .Where(ht => targetHalaqaIds.Contains(ht.HalaqaId) && teacherIds.Contains(ht.TeacherId))
+                .ToListAsync();
+
+            var assignmentLookup = assignments
+                .ToLookup(ht => new { ht.TeacherId, ht.HalaqaId });
+
+            // 3. Load all existing attendance records for today in bulk
+            var existingAttendances = await _context.TeacherAttendances
+                .Where(ta => targetHalaqaIds.Contains(ta.HalaqaId) &&
+                             teacherIds.Contains(ta.TeacherId) &&
+                             ta.Date.Date == today)
+                .ToListAsync();
+
+            var attendanceLookup = existingAttendances
+                .ToDictionary(ta => new { ta.TeacherId, ta.HalaqaId });
+
+            // 4. Process entries
             foreach (var entry in dto.Attendance)
             {
-                var halaqaTeacher = await _context.HalaqaTeachers
-                    .OrderBy(ht => ht.HalaqaId).ThenBy(ht => ht.TeacherId)
-                    .FirstOrDefaultAsync(ht => ht.TeacherId == entry.TeacherId && ht.HalaqaId == entry.HalaqaId);
-
-                if (halaqaTeacher == null)
+                if (!assignmentLookup.Contains(new { entry.TeacherId, entry.HalaqaId }))
                 {
-                    throw new InvalidOperationException("المعلم غير معين في هذه الحلقة");
+                    throw new InvalidOperationException($"المعلم ذو الرقم {entry.TeacherId} غير معين في الحلقة {entry.HalaqaId}");
                 }
 
-                var existingAttendance = await _context.TeacherAttendances
-                    .OrderBy(ta => ta.Id)
-                    .FirstOrDefaultAsync(ta =>
-                        ta.TeacherId == entry.TeacherId &&
-                        ta.HalaqaId == entry.HalaqaId &&
-                        ta.Date.Date == today);
-
-                if (existingAttendance != null)
+                if (attendanceLookup.TryGetValue(new { entry.TeacherId, entry.HalaqaId }, out var existing))
                 {
-                    existingAttendance.Status = entry.Status;
-                    existingAttendance.Notes = entry.Notes;
+                    existing.Status = entry.Status;
+                    existing.Notes = entry.Notes;
                 }
                 else
                 {

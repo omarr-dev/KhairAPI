@@ -7,9 +7,9 @@ namespace KhairAPI.Services.Interfaces
         /// and it was an active day for their Halaqa.
         /// Runs automatically at 23:59 each day.
         /// </summary>
-        /// <param name="date">The date to process</param>
+        /// <param name="date">The date to process. If null, uses the current date.</param>
         /// <returns>Number of absent records created</returns>
-        Task<int> MarkAbsentForMissingAttendanceAsync(DateTime date);
+        Task<int> MarkAbsentForMissingAttendanceAsync(DateTime? date = null);
     }
 }
 
