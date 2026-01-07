@@ -37,20 +37,20 @@ namespace KhairAPI.Services.Implementations
                 attendanceQuery = attendanceQuery.Where(a => studentIdsSet.Contains(a.StudentId));
             }
 
-            // Run independent count queries in parallel for better performance
-            var totalStudentsTask = studentQuery.CountAsync();
-            var totalTeachersTask = _context.Teachers.CountAsync();
+            // Execute queries sequentially (DbContext is not thread-safe)
+            var totalStudents = await studentQuery.CountAsync();
+            var totalTeachers = await _context.Teachers.CountAsync();
 
             // Combine Halaqat counts into a single query with projection
-            var halaqatStatsTask = _context.Halaqat
+            var halaqatStats = await _context.Halaqat
                 .GroupBy(h => 1)
                 .Select(g => new { Total = g.Count(), Active = g.Count(h => h.IsActive) })
                 .FirstOrDefaultAsync();
 
-            var todayProgressTask = progressQuery.ToListAsync();
+            var todayProgress = await progressQuery.ToListAsync();
 
             // Get both attendance counts in a single roundtrip using projection
-            var attendanceStatsTask = attendanceQuery
+            var attendanceStats = await attendanceQuery
                 .GroupBy(a => 1)
                 .Select(g => new
                 {
@@ -58,15 +58,6 @@ namespace KhairAPI.Services.Implementations
                     Total = g.Count()
                 })
                 .FirstOrDefaultAsync();
-
-            // Await all tasks in parallel
-            await Task.WhenAll(totalStudentsTask, totalTeachersTask, halaqatStatsTask, todayProgressTask, attendanceStatsTask);
-
-            var totalStudents = await totalStudentsTask;
-            var totalTeachers = await totalTeachersTask;
-            var halaqatStats = await halaqatStatsTask;
-            var todayProgress = await todayProgressTask;
-            var attendanceStats = await attendanceStatsTask;
 
             var totalHalaqat = halaqatStats?.Total ?? 0;
             var activeHalaqat = halaqatStats?.Active ?? 0;
@@ -224,15 +215,13 @@ namespace KhairAPI.Services.Implementations
             var yesterday = today.AddDays(-1);
             var weekStart = today.AddDays(-(int)today.DayOfWeek);
 
-            // Run student count in parallel with progress query
-            var totalStudentsTask = _context.Students.CountAsync();
+            // Get student count first
+            var totalStudents = await _context.Students.CountAsync();
 
             // Load ALL progress records for the week in ONE query (includes today, yesterday, and week data)
             var weekProgress = await _context.ProgressRecords
                 .Where(p => p.Date >= weekStart && p.Date <= today)
                 .ToListAsync();
-
-            var totalStudents = await totalStudentsTask;
 
             // Filter today's progress in-memory (already loaded)
             var todayProgress = weekProgress.Where(p => p.Date == today).ToList();
@@ -283,21 +272,12 @@ namespace KhairAPI.Services.Implementations
             var today = DateTime.UtcNow.Date;
             var weekAgo = today.AddDays(-7);
 
-            // Run all independent queries in parallel
-            var totalStudentsTask = _context.Students.CountAsync();
-            var totalTeachersTask = _context.Teachers.CountAsync();
-            var totalHalaqatTask = _context.Halaqat.Where(h => h.IsActive).CountAsync();
-            var todayAttendanceTask = _context.Attendances.Where(a => a.Date == today).ToListAsync();
-            var todayProgressTask = _context.ProgressRecords.Where(p => p.Date == today).ToListAsync();
-
-            // Wait for initial queries
-            await Task.WhenAll(totalStudentsTask, totalTeachersTask, totalHalaqatTask, todayAttendanceTask, todayProgressTask);
-
-            var totalStudents = await totalStudentsTask;
-            var totalTeachers = await totalTeachersTask;
-            var totalHalaqat = await totalHalaqatTask;
-            var todayAttendance = await todayAttendanceTask;
-            var todayProgress = await todayProgressTask;
+            // Execute queries sequentially (DbContext is not thread-safe)
+            var totalStudents = await _context.Students.CountAsync();
+            var totalTeachers = await _context.Teachers.CountAsync();
+            var totalHalaqat = await _context.Halaqat.Where(h => h.IsActive).CountAsync();
+            var todayAttendance = await _context.Attendances.Where(a => a.Date == today).ToListAsync();
+            var todayProgress = await _context.ProgressRecords.Where(p => p.Date == today).ToListAsync();
 
             var todayAttendanceRate = todayAttendance.Any()
                 ? (double)todayAttendance.Count(a => a.Status == AttendanceStatus.Present) / todayAttendance.Count * 100
@@ -306,16 +286,10 @@ namespace KhairAPI.Services.Implementations
             var todayMemorization = todayProgress.Count(p => p.Type == ProgressType.Memorization);
             var todayRevision = todayProgress.Count(p => p.Type == ProgressType.Revision);
 
-            // Run ranking methods in parallel (they are now optimized and don't have N+1 issues)
-            var halaqatStatsTask = GetHalaqaRankingAsync(7, 5);
-            var teacherStatsTask = GetTeacherRankingAsync(7, 5);
-            var atRiskStudentsTask = GetAtRiskStudentsAsync(10);
-
-            await Task.WhenAll(halaqatStatsTask, teacherStatsTask, atRiskStudentsTask);
-
-            var halaqatStats = await halaqatStatsTask;
-            var teacherStats = await teacherStatsTask;
-            var atRiskStudents = await atRiskStudentsTask;
+            // Execute ranking methods sequentially (they share the same DbContext)
+            var halaqatStats = await GetHalaqaRankingAsync(7, 5);
+            var teacherStats = await GetTeacherRankingAsync(7, 5);
+            var atRiskStudents = await GetAtRiskStudentsAsync(10);
 
             return new SupervisorDashboardDto
             {
