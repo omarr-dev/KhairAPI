@@ -54,8 +54,8 @@ namespace KhairAPI.Data
                     .HasMaxLength(50);
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -83,8 +83,8 @@ namespace KhairAPI.Data
                     .OnDelete(DeleteBehavior.Cascade);
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -103,8 +103,8 @@ namespace KhairAPI.Data
                 entity.Property(e => e.TimeSlot).HasMaxLength(100);
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -124,8 +124,8 @@ namespace KhairAPI.Data
                 entity.Property(e => e.GuardianPhone).HasMaxLength(20);
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -155,8 +155,8 @@ namespace KhairAPI.Data
                     .OnDelete(DeleteBehavior.Cascade);
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -195,8 +195,8 @@ namespace KhairAPI.Data
                     .OnDelete(DeleteBehavior.Cascade);
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -247,8 +247,8 @@ namespace KhairAPI.Data
                     .OnDelete(DeleteBehavior.Restrict);
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -290,8 +290,8 @@ namespace KhairAPI.Data
                     .IsUnique();
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
@@ -335,8 +335,8 @@ namespace KhairAPI.Data
                     .IsUnique();
 
                 // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
-                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
 
                 // Foreign key to Association
                 entity.HasOne(e => e.Association)
