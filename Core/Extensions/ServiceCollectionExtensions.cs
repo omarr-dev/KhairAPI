@@ -7,6 +7,7 @@ using KhairAPI.Data;
 using KhairAPI.Core.Helpers;
 using KhairAPI.Services.Interfaces;
 using KhairAPI.Services.Implementations;
+using KhairAPI.Services;
 using Hangfire;
 using Hangfire.PostgreSql;
 
@@ -160,6 +161,9 @@ namespace KhairAPI.Core.Extensions
             // Core services
             services.AddHttpContextAccessor();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+            // Multi-tenancy
+            services.AddScoped<ITenantService, TenantService>();
 
             // Domain services
             services.AddScoped<IJwtService, JwtService>();

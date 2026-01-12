@@ -22,6 +22,10 @@ namespace KhairAPI.Models.Entities
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        // Multi-tenancy
+        public int AssociationId { get; set; }
+        public Association? Association { get; set; }
+
         // Navigation property
         public Teacher? Teacher { get; set; }
     }

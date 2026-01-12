@@ -1,14 +1,21 @@
 using Microsoft.EntityFrameworkCore;
 using KhairAPI.Models.Entities;
+using KhairAPI.Services.Interfaces;
 
 namespace KhairAPI.Data
 {
     public class AppDbContext : DbContext
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+        private readonly ITenantService? _tenantService;
+
+        public AppDbContext(DbContextOptions<AppDbContext> options, ITenantService? tenantService = null) : base(options)
         {
+            _tenantService = tenantService;
         }
-        
+
+        // Multi-tenancy
+        public DbSet<Association> Associations { get; set; } = null!;
+
         public DbSet<User> Users { get; set; }
         public DbSet<Halaqa> Halaqat { get; set; }
         public DbSet<Teacher> Teachers { get; set; }
@@ -18,16 +25,26 @@ namespace KhairAPI.Data
         public DbSet<ProgressRecord> ProgressRecords { get; set; }
         public DbSet<Attendance> Attendances { get; set; }
         public DbSet<TeacherAttendance> TeacherAttendances { get; set; }
-        
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            
+
+            // Configure Association entity
+            modelBuilder.Entity<Association>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Subdomain).IsUnique();
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Subdomain).IsRequired().HasMaxLength(100);
+            });
+
             // Configure User entity
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => e.PhoneNumber).IsUnique();
+                entity.HasIndex(e => e.AssociationId);
                 entity.Property(e => e.PhoneNumber).IsRequired().HasMaxLength(20);
                 entity.Property(e => e.FullName).IsRequired().HasMaxLength(255);
 
@@ -35,8 +52,18 @@ namespace KhairAPI.Data
                 entity.Property(e => e.Role)
                     .HasConversion<string>()
                     .HasMaxLength(50);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.Users)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure Teacher entity
             modelBuilder.Entity<Teacher>(entity =>
             {
@@ -47,33 +74,66 @@ namespace KhairAPI.Data
 
                 // Create index on UserId for better join performance
                 entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.AssociationId);
 
                 // Configure one-to-one relationship with User
                 entity.HasOne(e => e.User)
                     .WithOne(u => u.Teacher)
                     .HasForeignKey<Teacher>(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.Teachers)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure Halaqa entity
             modelBuilder.Entity<Halaqa>(entity =>
             {
                 entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.AssociationId);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
                 entity.Property(e => e.Location).HasMaxLength(255);
                 entity.Property(e => e.TimeSlot).HasMaxLength(100);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.Halaqat)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure Student entity
             modelBuilder.Entity<Student>(entity =>
             {
                 entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.AssociationId);
                 entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.GuardianName).HasMaxLength(255);
                 entity.Property(e => e.GuardianPhone).HasMaxLength(20);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.Students)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure HalaqaTeacher (many-to-many relationship)
             modelBuilder.Entity<HalaqaTeacher>(entity =>
             {
@@ -82,6 +142,7 @@ namespace KhairAPI.Data
                 // Indexes for foreign keys (reverse lookup)
                 entity.HasIndex(e => e.TeacherId);
                 entity.HasIndex(e => e.HalaqaId);
+                entity.HasIndex(e => e.AssociationId);
 
                 entity.HasOne(e => e.Halaqa)
                     .WithMany(h => h.HalaqaTeachers)
@@ -92,8 +153,18 @@ namespace KhairAPI.Data
                     .WithMany(t => t.HalaqaTeachers)
                     .HasForeignKey(e => e.TeacherId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.HalaqaTeachers)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure StudentHalaqa (many-to-many relationship)
             modelBuilder.Entity<StudentHalaqa>(entity =>
             {
@@ -105,6 +176,7 @@ namespace KhairAPI.Data
                 entity.HasIndex(e => e.HalaqaId);
                 entity.HasIndex(e => e.TeacherId);
                 entity.HasIndex(e => new { e.HalaqaId, e.TeacherId });
+                entity.HasIndex(e => e.AssociationId);
 
                 entity.HasOne(e => e.Student)
                     .WithMany(s => s.StudentHalaqat)
@@ -121,8 +193,18 @@ namespace KhairAPI.Data
                     .HasForeignKey(e => e.TeacherId)
                     .IsRequired()
                     .OnDelete(DeleteBehavior.Cascade);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.StudentHalaqat)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure ProgressRecord entity
             modelBuilder.Entity<ProgressRecord>(entity =>
             {
@@ -146,6 +228,7 @@ namespace KhairAPI.Data
                 entity.HasIndex(e => e.TeacherId);
                 entity.HasIndex(e => new { e.Date, e.StudentId });
                 entity.HasIndex(e => new { e.Date, e.HalaqaId });
+                entity.HasIndex(e => e.AssociationId);
 
                 // Configure relationships
                 entity.HasOne(e => e.Student)
@@ -162,8 +245,18 @@ namespace KhairAPI.Data
                     .WithMany(h => h.ProgressRecords)
                     .HasForeignKey(e => e.HalaqaId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.ProgressRecords)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure Attendance entity
             modelBuilder.Entity<Attendance>(entity =>
             {
@@ -179,6 +272,7 @@ namespace KhairAPI.Data
                 entity.HasIndex(e => e.Date);
                 entity.HasIndex(e => e.HalaqaId);
                 entity.HasIndex(e => new { e.Date, e.HalaqaId });
+                entity.HasIndex(e => e.AssociationId);
 
                 // Configure relationships
                 entity.HasOne(e => e.Student)
@@ -194,8 +288,18 @@ namespace KhairAPI.Data
                 // Create composite index for unique attendance per student per day
                 entity.HasIndex(e => new { e.StudentId, e.Date })
                     .IsUnique();
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.Attendances)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
-            
+
             // Configure TeacherAttendance entity
             modelBuilder.Entity<TeacherAttendance>(entity =>
             {
@@ -213,6 +317,7 @@ namespace KhairAPI.Data
                 entity.HasIndex(e => e.HalaqaId);
                 entity.HasIndex(e => new { e.Date, e.TeacherId });
                 entity.HasIndex(e => new { e.Date, e.HalaqaId });
+                entity.HasIndex(e => e.AssociationId);
 
                 // Configure relationships
                 entity.HasOne(e => e.Teacher)
@@ -228,6 +333,16 @@ namespace KhairAPI.Data
                 // Create composite index for unique attendance per teacher per halaqa per day
                 entity.HasIndex(e => new { e.TeacherId, e.HalaqaId, e.Date })
                     .IsUnique();
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || _tenantService.CurrentAssociationId == null
+                    || e.AssociationId == _tenantService.CurrentAssociationId.Value);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany(a => a.TeacherAttendances)
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }

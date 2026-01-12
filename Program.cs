@@ -136,6 +136,10 @@ public class Program
         app.UseCors("NextJsPolicy");
 
         app.UseAuthentication();
+
+        // Multi-tenancy: Extract tenant context from JWT
+        app.UseMiddleware<KhairAPI.Middleware.TenantMiddleware>();
+
         app.UseAuthorization();
 
         app.MapControllers();

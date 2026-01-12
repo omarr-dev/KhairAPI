@@ -11,10 +11,21 @@ namespace KhairAPI.Data
                 serviceProvider.GetRequiredService<DbContextOptions<AppDbContext>>());
 
             // Check if data already exists
-            if (await context.Users.AnyAsync())
+            if (await context.Associations.AnyAsync())
             {
                 return; // Database has been seeded
             }
+
+            // Create default association (ID=1 for "جمعية خير")
+            var defaultAssociation = new Association
+            {
+                Name = "جمعية خير",
+                Subdomain = "khair",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            context.Associations.Add(defaultAssociation);
+            await context.SaveChangesAsync(); // Save to get the ID
 
             // Create supervisor user
             var supervisorUser = new User
@@ -23,6 +34,7 @@ namespace KhairAPI.Data
                 FullName = "أحمد المشرف",
                 Role = UserRole.Supervisor,
                 IsActive = true,
+                AssociationId = defaultAssociation.Id,
                 CreatedAt = DateTime.UtcNow
             };
             context.Users.Add(supervisorUser);
@@ -34,6 +46,7 @@ namespace KhairAPI.Data
                 FullName = "محمد المعلم",
                 Role = UserRole.Teacher,
                 IsActive = true,
+                AssociationId = defaultAssociation.Id,
                 CreatedAt = DateTime.UtcNow
             };
             context.Users.Add(teacher1User);
@@ -44,6 +57,7 @@ namespace KhairAPI.Data
                 FullName = "عبدالله المعلم",
                 Role = UserRole.Teacher,
                 IsActive = true,
+                AssociationId = defaultAssociation.Id,
                 CreatedAt = DateTime.UtcNow
             };
             context.Users.Add(teacher2User);
@@ -57,6 +71,7 @@ namespace KhairAPI.Data
                 FullName = teacher1User.FullName,
                 PhoneNumber = teacher1User.PhoneNumber,
                 Qualification = "إجازة في القرآن الكريم",
+                AssociationId = defaultAssociation.Id,
                 JoinDate = DateTime.UtcNow
             };
             context.Teachers.Add(teacher1);
@@ -67,6 +82,7 @@ namespace KhairAPI.Data
                 FullName = teacher2User.FullName,
                 PhoneNumber = teacher2User.PhoneNumber,
                 Qualification = "بكالوريوس دراسات إسلامية",
+                AssociationId = defaultAssociation.Id,
                 JoinDate = DateTime.UtcNow
             };
             context.Teachers.Add(teacher2);
@@ -80,6 +96,7 @@ namespace KhairAPI.Data
                 Location = "المسجد الكبير",
                 TimeSlot = "5:30 - 7:00 صباحاً",
                 IsActive = true,
+                AssociationId = defaultAssociation.Id,
                 CreatedAt = DateTime.UtcNow
             };
             context.Halaqat.Add(halaqa1);
@@ -90,6 +107,7 @@ namespace KhairAPI.Data
                 Location = "مسجد الحي",
                 TimeSlot = "4:30 - 6:00 مساءً",
                 IsActive = true,
+                AssociationId = defaultAssociation.Id,
                 CreatedAt = DateTime.UtcNow
             };
             context.Halaqat.Add(halaqa2);
@@ -102,7 +120,8 @@ namespace KhairAPI.Data
                 HalaqaId = halaqa1.Id,
                 TeacherId = teacher1.Id,
                 AssignedDate = DateTime.UtcNow,
-                IsPrimary = true
+                IsPrimary = true,
+                AssociationId = defaultAssociation.Id
             });
 
             context.HalaqaTeachers.Add(new HalaqaTeacher
@@ -110,7 +129,8 @@ namespace KhairAPI.Data
                 HalaqaId = halaqa2.Id,
                 TeacherId = teacher2.Id,
                 AssignedDate = DateTime.UtcNow,
-                IsPrimary = true
+                IsPrimary = true,
+                AssociationId = defaultAssociation.Id
             });
 
             // Create sample students
@@ -124,6 +144,7 @@ namespace KhairAPI.Data
                     GuardianName = "محمد أحمد",
                     GuardianPhone = "+966504567890",
                     JuzMemorized = 5,
+                    AssociationId = defaultAssociation.Id,
                     CreatedAt = DateTime.UtcNow
                 },
                 new Student
@@ -134,6 +155,7 @@ namespace KhairAPI.Data
                     GuardianName = "علي عبدالله",
                     GuardianPhone = "+966555678901",
                     JuzMemorized = 3,
+                    AssociationId = defaultAssociation.Id,
                     CreatedAt = DateTime.UtcNow
                 },
                 new Student
@@ -144,6 +166,7 @@ namespace KhairAPI.Data
                     GuardianName = "سعد خالد",
                     GuardianPhone = "+966506789012",
                     JuzMemorized = 8,
+                    AssociationId = defaultAssociation.Id,
                     CreatedAt = DateTime.UtcNow
                 },
                 new Student
@@ -154,6 +177,7 @@ namespace KhairAPI.Data
                     GuardianName = "عمر محمد",
                     GuardianPhone = "+966507890123",
                     JuzMemorized = 2,
+                    AssociationId = defaultAssociation.Id,
                     CreatedAt = DateTime.UtcNow
                 }
             };
@@ -168,7 +192,8 @@ namespace KhairAPI.Data
                 HalaqaId = halaqa1.Id,
                 TeacherId = teacher1.Id,
                 EnrollmentDate = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                AssociationId = defaultAssociation.Id
             });
 
             context.StudentHalaqat.Add(new StudentHalaqa
@@ -177,7 +202,8 @@ namespace KhairAPI.Data
                 HalaqaId = halaqa1.Id,
                 TeacherId = teacher1.Id,
                 EnrollmentDate = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                AssociationId = defaultAssociation.Id
             });
 
             context.StudentHalaqat.Add(new StudentHalaqa
@@ -186,7 +212,8 @@ namespace KhairAPI.Data
                 HalaqaId = halaqa2.Id,
                 TeacherId = teacher2.Id,
                 EnrollmentDate = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                AssociationId = defaultAssociation.Id
             });
 
             context.StudentHalaqat.Add(new StudentHalaqa
@@ -195,7 +222,8 @@ namespace KhairAPI.Data
                 HalaqaId = halaqa2.Id,
                 TeacherId = teacher2.Id,
                 EnrollmentDate = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                AssociationId = defaultAssociation.Id
             });
 
             await context.SaveChangesAsync();

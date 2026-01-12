@@ -25,6 +25,10 @@ namespace KhairAPI.Models.Entities
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        // Multi-tenancy
+        public int AssociationId { get; set; }
+        public Association? Association { get; set; }
+
         // Navigation properties
         public ICollection<HalaqaTeacher> HalaqaTeachers { get; set; } = new List<HalaqaTeacher>();
         public ICollection<StudentHalaqa> StudentHalaqat { get; set; } = new List<StudentHalaqa>();
