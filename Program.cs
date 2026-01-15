@@ -37,7 +37,11 @@ public class Program
                         return true;
                     
                     // Allow *.localhost for multi-tenancy subdomain testing
-                    if (origin.Contains(".localhost:") || origin.EndsWith(".localhost") || origin.Contains("maarij.sa")  )
+                    if (origin.Contains(".localhost:") || origin.EndsWith(".localhost") )
+                        return true;
+
+                    // Allow production domain maarij.sa and its subdomains
+                    if (origin == "https://maarij.sa" || origin.EndsWith(".maarij.sa"))
                         return true;
                     
                     // Allow Vercel deployments
