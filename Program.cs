@@ -26,36 +26,16 @@ public class Program
             options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
         // Configure CORS for Next.js frontend
-        builder.Services.AddCors(options =>
-        {
-            options.AddPolicy("NextJsPolicy", policy =>
-            {
-                policy.SetIsOriginAllowed(origin =>
-                {
-                    // Allow localhost and subdomains (e.g., khair.localhost:3000)
-                    if (origin.StartsWith("http://localhost") || origin.StartsWith("https://localhost"))
-                        return true;
-                    
-                    // Allow *.localhost for multi-tenancy subdomain testing
-                    if (origin.Contains(".localhost:") || origin.EndsWith(".localhost") )
-                        return true;
-
-                    // Allow production domain maarij.sa and its subdomains
-                    if (origin == "https://maarij.sa" || origin.EndsWith(".maarij.sa"))
-                        return true;
-                    
-                    // Allow Vercel deployments
-                    if (origin.Contains(".vercel.app"))
-                        return true;
-                    
-                    return false;
-                })
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials();
-            });
-        });
-
+      // Add CORS service to allow all origins, headers, and methods
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
         // Configure JWT Authentication
         var jwtSettings = builder.Configuration.GetSection("JwtSettings");
         var secretKey = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT Secret Key not configured"));
