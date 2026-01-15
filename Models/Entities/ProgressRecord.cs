@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace KhairAPI.Models.Entities
 {
-    public class ProgressRecord
+    public class ProgressRecord : ITenantEntity
     {
         public int Id { get; set; }
 

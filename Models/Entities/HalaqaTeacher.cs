@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace KhairAPI.Models.Entities
 {
-    public class HalaqaTeacher
+    public class HalaqaTeacher : ITenantEntity
     {
         public int HalaqaId { get; set; }
         public int TeacherId { get; set; }

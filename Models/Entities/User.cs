@@ -4,7 +4,7 @@ using KhairAPI.Core.Attributes;
 
 namespace KhairAPI.Models.Entities
 {
-    public class User
+    public class User : ITenantEntity
     {
         public int Id { get; set; }
 

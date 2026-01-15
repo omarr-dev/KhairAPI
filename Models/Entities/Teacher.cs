@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace KhairAPI.Models.Entities
 {
-    public class Teacher
+    public class Teacher : ITenantEntity
     {
         public int Id { get; set; }
 

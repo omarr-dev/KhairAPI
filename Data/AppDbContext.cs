@@ -345,5 +345,56 @@ namespace KhairAPI.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
         }
+
+        /// <summary>
+        /// Override SaveChangesAsync to automatically assign AssociationId to new tenant entities.
+        /// Also validates that all tenant entities have a valid AssociationId before saving.
+        /// </summary>
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            ApplyTenantIdToNewEntities();
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Override SaveChanges to automatically assign AssociationId to new tenant entities.
+        /// Also validates that all tenant entities have a valid AssociationId before saving.
+        /// </summary>
+        public override int SaveChanges()
+        {
+            ApplyTenantIdToNewEntities();
+            return base.SaveChanges();
+        }
+
+        /// <summary>
+        /// Automatically assigns AssociationId from TenantService to new entities implementing ITenantEntity.
+        /// Validates that no tenant entity is saved without a valid AssociationId when tenant context exists.
+        /// </summary>
+        private void ApplyTenantIdToNewEntities()
+        {
+            var tenantEntries = ChangeTracker.Entries<ITenantEntity>()
+                .Where(e => e.State == EntityState.Added);
+
+            foreach (var entry in tenantEntries)
+            {
+                var entity = entry.Entity;
+
+                // If AssociationId is not set (0) and we have a tenant context, auto-assign it
+                if (entity.AssociationId == 0 && _tenantService?.CurrentAssociationId.HasValue == true)
+                {
+                    entity.AssociationId = _tenantService.CurrentAssociationId.Value;
+                }
+
+                // Validate: If we have a tenant context but AssociationId is still 0, throw an error
+                // This catches bugs where tenant context exists but entity wasn't properly assigned
+                if (entity.AssociationId == 0 && _tenantService?.CurrentAssociationId.HasValue == true)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot save entity of type '{entity.GetType().Name}' without a valid AssociationId. " +
+                        $"Tenant context is available (AssociationId: {_tenantService.CurrentAssociationId}) but entity has AssociationId = 0.");
+                }
+            }
+        }
     }
 }
+
