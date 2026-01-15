@@ -27,15 +27,7 @@ public class Program
 
         // Configure CORS for Next.js frontend
       // Add CORS service to allow all origins, headers, and methods
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-    });
-});
+
         // Configure JWT Authentication
         var jwtSettings = builder.Configuration.GetSection("JwtSettings");
         var secretKey = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT Secret Key not configured"));
