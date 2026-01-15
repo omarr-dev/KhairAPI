@@ -11,11 +11,13 @@ namespace KhairAPI.Services.Implementations
     {
         private readonly AppDbContext _context;
         private readonly IQuranService _quranService;
+        private readonly ITenantService _tenantService;
 
-        public HalaqaService(AppDbContext context, IQuranService quranService)
+        public HalaqaService(AppDbContext context, IQuranService quranService, ITenantService tenantService)
         {
             _context = context;
             _quranService = quranService;
+            _tenantService = tenantService;
         }
 
         public async Task<IEnumerable<HalaqaDto>> GetAllHalaqatAsync(int? teacherId = null)
@@ -100,6 +102,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<HalaqaDto> CreateHalaqaAsync(CreateHalaqaDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var halaqa = new Halaqa
             {
                 Name = dto.Name,
@@ -107,7 +114,8 @@ namespace KhairAPI.Services.Implementations
                 TimeSlot = dto.TimeSlot,
                 ActiveDays = dto.ActiveDays,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.Halaqat.Add(halaqa);

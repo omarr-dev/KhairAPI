@@ -29,15 +29,27 @@ public class Program
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("NextJsPolicy", policy =>
-{
-    policy.SetIsOriginAllowed(origin =>
-            origin.StartsWith("http://localhost") ||
-            origin.Contains(".vercel.app")
-        )
-           .AllowAnyMethod()
-           .AllowAnyHeader()
-           .AllowCredentials();
-});
+            {
+                policy.SetIsOriginAllowed(origin =>
+                {
+                    // Allow localhost and subdomains (e.g., khair.localhost:3000)
+                    if (origin.StartsWith("http://localhost") || origin.StartsWith("https://localhost"))
+                        return true;
+                    
+                    // Allow *.localhost for multi-tenancy subdomain testing
+                    if (origin.Contains(".localhost:") || origin.EndsWith(".localhost"))
+                        return true;
+                    
+                    // Allow Vercel deployments
+                    if (origin.Contains(".vercel.app"))
+                        return true;
+                    
+                    return false;
+                })
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+            });
         });
 
         // Configure JWT Authentication

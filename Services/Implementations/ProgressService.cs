@@ -10,15 +10,22 @@ namespace KhairAPI.Services.Implementations
     {
         private readonly AppDbContext _context;
         private readonly IQuranService _quranService;
+        private readonly ITenantService _tenantService;
 
-        public ProgressService(AppDbContext context, IQuranService quranService)
+        public ProgressService(AppDbContext context, IQuranService quranService, ITenantService tenantService)
         {
             _context = context;
             _quranService = quranService;
+            _tenantService = tenantService;
         }
 
         public async Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var studentAssignment = await _context.StudentHalaqat
                 .OrderBy(sh => sh.StudentId).ThenBy(sh => sh.HalaqaId).ThenBy(sh => sh.TeacherId)
                 .FirstOrDefaultAsync(sh =>
@@ -56,7 +63,8 @@ namespace KhairAPI.Services.Implementations
                 ToVerse = dto.ToVerse,
                 Quality = dto.Quality,
                 Notes = dto.Notes,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.ProgressRecords.Add(progressRecord);
@@ -95,7 +103,8 @@ namespace KhairAPI.Services.Implementations
                     Date = progressDate,
                     Status = AttendanceStatus.Present,
                     Notes = "حضور تلقائي - تم تسجيل تقدم",
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AssociationId = _tenantService.CurrentAssociationId.Value
                 };
                 _context.Attendances.Add(attendance);
             }

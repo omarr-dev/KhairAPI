@@ -12,12 +12,14 @@ namespace KhairAPI.Services.Implementations
         private readonly AppDbContext _context;
         private readonly IJwtService _jwtService;
         private readonly IConfiguration _configuration;
+        private readonly ITenantService _tenantService;
 
-        public AuthService(AppDbContext context, IJwtService jwtService, IConfiguration configuration)
+        public AuthService(AppDbContext context, IJwtService jwtService, IConfiguration configuration, ITenantService tenantService)
         {
             _context = context;
             _jwtService = jwtService;
             _configuration = configuration;
+            _tenantService = tenantService;
         }
 
         public async Task<AuthResponseDto?> LoginAsync(LoginDto loginDto)
@@ -43,6 +45,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<AuthResponseDto?> RegisterAsync(RegisterDto registerDto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى التأكد من استخدام الرابط الصحيح.");
+            }
+
             // Format and validate phone number
             var formattedPhone = PhoneNumberValidator.Format(registerDto.PhoneNumber);
             if (formattedPhone == null)
@@ -57,7 +64,8 @@ namespace KhairAPI.Services.Implementations
                 FullName = registerDto.FullName,
                 Role = registerDto.Role,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.Users.Add(user);
@@ -71,7 +79,8 @@ namespace KhairAPI.Services.Implementations
                     FullName = registerDto.FullName,
                     PhoneNumber = formattedPhone,
                     Qualification = registerDto.Qualification,
-                    JoinDate = DateTime.UtcNow
+                    JoinDate = DateTime.UtcNow,
+                    AssociationId = _tenantService.CurrentAssociationId.Value
                 };
 
                 _context.Teachers.Add(teacher);

@@ -10,10 +10,12 @@ namespace KhairAPI.Services.Implementations
     public class TeacherAttendanceService : ITeacherAttendanceService
     {
         private readonly AppDbContext _context;
+        private readonly ITenantService _tenantService;
 
-        public TeacherAttendanceService(AppDbContext context)
+        public TeacherAttendanceService(AppDbContext context, ITenantService tenantService)
         {
             _context = context;
+            _tenantService = tenantService;
         }
 
         public async Task<TodayTeacherAttendanceResponseDto> GetTodayAttendanceAsync()
@@ -108,6 +110,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> SaveBulkAttendanceAsync(BulkTeacherAttendanceDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var today = DateTime.UtcNow.Date;
             var dayOfWeek = (int)today.DayOfWeek;
 
@@ -173,7 +180,8 @@ namespace KhairAPI.Services.Implementations
                         Date = today,
                         Status = entry.Status,
                         Notes = entry.Notes,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
+                        AssociationId = _tenantService.CurrentAssociationId.Value
                     };
                     _context.TeacherAttendances.Add(newAttendance);
                 }

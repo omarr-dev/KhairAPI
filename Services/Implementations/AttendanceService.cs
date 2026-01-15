@@ -9,14 +9,21 @@ namespace KhairAPI.Services.Implementations
     public class AttendanceService : IAttendanceService
     {
         private readonly AppDbContext _context;
+        private readonly ITenantService _tenantService;
 
-        public AttendanceService(AppDbContext context)
+        public AttendanceService(AppDbContext context, ITenantService tenantService)
         {
             _context = context;
+            _tenantService = tenantService;
         }
 
         public async Task<AttendanceRecordDto> CreateAttendanceAsync(CreateAttendanceDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var existingAttendance = await _context.Attendances
                 .OrderBy(a => a.Id)
                 .FirstOrDefaultAsync(a => a.StudentId == dto.StudentId && a.Date.Date == dto.Date.Date);
@@ -35,7 +42,8 @@ namespace KhairAPI.Services.Implementations
                     Date = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc),
                     Status = dto.Status,
                     Notes = dto.Notes,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AssociationId = _tenantService.CurrentAssociationId.Value
                 };
 
                 _context.Attendances.Add(attendance);
@@ -55,6 +63,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> CreateBulkAttendanceAsync(BulkAttendanceDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var date = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc);
 
             var existingAttendance = await _context.Attendances
@@ -77,7 +90,8 @@ namespace KhairAPI.Services.Implementations
                         Date = date,
                         Status = studentAttendance.Status,
                         Notes = studentAttendance.Notes,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
+                        AssociationId = _tenantService.CurrentAssociationId.Value
                     };
                     _context.Attendances.Add(attendance);
                 }

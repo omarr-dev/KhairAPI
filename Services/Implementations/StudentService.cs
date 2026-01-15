@@ -10,11 +10,13 @@ namespace KhairAPI.Services.Implementations
     {
         private readonly AppDbContext _context;
         private readonly IQuranService _quranService;
+        private readonly ITenantService _tenantService;
 
-        public StudentService(AppDbContext context, IQuranService quranService)
+        public StudentService(AppDbContext context, IQuranService quranService, ITenantService tenantService)
         {
             _context = context;
             _quranService = quranService;
+            _tenantService = tenantService;
         }
 
         public async Task<IEnumerable<StudentDto>> GetAllStudentsAsync()
@@ -272,6 +274,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<StudentDto> CreateStudentAsync(CreateStudentDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var direction = dto.MemorizationDirection?.ToLower() == "backward"
                 ? MemorizationDirection.Backward
                 : MemorizationDirection.Forward;
@@ -289,7 +296,8 @@ namespace KhairAPI.Services.Implementations
                 CurrentSurahNumber = dto.CurrentSurahNumber,
                 CurrentVerse = dto.CurrentVerse,
                 JuzMemorized = 0,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.Students.Add(student);
@@ -303,7 +311,8 @@ namespace KhairAPI.Services.Implementations
                     HalaqaId = dto.HalaqaId.Value,
                     TeacherId = dto.TeacherId.Value,
                     EnrollmentDate = DateTime.UtcNow,
-                    IsActive = true
+                    IsActive = true,
+                    AssociationId = _tenantService.CurrentAssociationId.Value
                 };
 
                 _context.StudentHalaqat.Add(studentHalaqa);
@@ -368,6 +377,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> AssignStudentToHalaqaAsync(AssignStudentDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var studentExists = await _context.Students.AnyAsync(s => s.Id == dto.StudentId);
             if (!studentExists)
                 return false;
@@ -399,7 +413,8 @@ namespace KhairAPI.Services.Implementations
                 HalaqaId = dto.HalaqaId,
                 TeacherId = dto.TeacherId,
                 EnrollmentDate = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.StudentHalaqat.Add(studentHalaqa);

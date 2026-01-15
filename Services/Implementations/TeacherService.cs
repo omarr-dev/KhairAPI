@@ -10,10 +10,12 @@ namespace KhairAPI.Services.Implementations
     public class TeacherService : ITeacherService
     {
         private readonly AppDbContext _context;
+        private readonly ITenantService _tenantService;
 
-        public TeacherService(AppDbContext context)
+        public TeacherService(AppDbContext context, ITenantService tenantService)
         {
             _context = context;
+            _tenantService = tenantService;
         }
 
         public async Task<IEnumerable<TeacherDto>> GetAllTeachersAsync()
@@ -119,6 +121,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<TeacherDto> CreateTeacherAsync(CreateTeacherDto dto)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             // Format and validate phone number
             var formattedPhone = PhoneNumberValidator.Format(dto.PhoneNumber);
             if (formattedPhone == null)
@@ -139,7 +146,8 @@ namespace KhairAPI.Services.Implementations
                 FullName = dto.FullName,
                 Role = UserRole.Teacher,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.Users.Add(user);
@@ -152,7 +160,8 @@ namespace KhairAPI.Services.Implementations
                 FullName = dto.FullName,
                 PhoneNumber = formattedPhone,
                 Qualification = dto.Qualification,
-                JoinDate = DateTime.UtcNow
+                JoinDate = DateTime.UtcNow,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.Teachers.Add(teacher);
@@ -218,6 +227,11 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> AssignTeacherToHalaqaAsync(int teacherId, int halaqaId, bool isPrimary = false)
         {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
             var teacher = await _context.Teachers.FindAsync(teacherId);
             if (teacher == null)
                 throw new KeyNotFoundException(AppConstants.ErrorMessages.TeacherNotFound);
@@ -238,7 +252,8 @@ namespace KhairAPI.Services.Implementations
                 TeacherId = teacherId,
                 HalaqaId = halaqaId,
                 AssignedDate = DateTime.UtcNow,
-                IsPrimary = isPrimary
+                IsPrimary = isPrimary,
+                AssociationId = _tenantService.CurrentAssociationId.Value
             };
 
             _context.HalaqaTeachers.Add(halaqaTeacher);
