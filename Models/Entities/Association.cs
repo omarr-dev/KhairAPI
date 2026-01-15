@@ -29,6 +29,31 @@ namespace KhairAPI.Models.Entities
         [MaxLength(10)]
         public string? SecondaryColor { get; set; } // Hex color code
 
+        // Additional branding and contact information
+        [MaxLength(255)]
+        public string? DisplayName { get; set; } // Display name (can be different from Name)
+
+        [MaxLength(1000)]
+        public string? Description { get; set; } // About the association
+
+        [MaxLength(500)]
+        public string? Favicon { get; set; } // URL to favicon image
+
+        [MaxLength(20)]
+        public string? PhoneNumber { get; set; } // Contact phone number
+
+        [MaxLength(255)]
+        public string? Email { get; set; } // Contact email
+
+        [MaxLength(255)]
+        public string? ManagerName { get; set; } // Name of the association manager
+
+        [MaxLength(100)]
+        public string? Country { get; set; } // Country
+
+        [MaxLength(100)]
+        public string? City { get; set; } // City
+
         public bool IsActive { get; set; } = true;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
