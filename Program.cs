@@ -167,50 +167,28 @@ public class Program
             DashboardTitle = "Khair - إدارة المهام المجدولة"
         });
 
-            // Apply migrations automatically on startup (all environments)
-            using (var scope = app.Services.CreateScope())
-            {
-                var services = scope.ServiceProvider;
-                try
-                {
-                    var dbContext = services.GetRequiredService<AppDbContext>();
-                    dbContext.Database.Migrate();
+        // Apply migrations automatically on startup (all environments)
+        using (var scope = app.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            dbContext.Database.Migrate();
 
-                    // Seed data only in development
-                    if (app.Environment.IsDevelopment())
-                    {
-                        await SeedData.InitializeAsync(services);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    var logger = services.GetRequiredService<ILogger<Program>>();
-                    logger.LogError(ex, "An error occurred during database migration or seeding.");
-                    // Re-throw to prevent application from starting in an inconsistent state
-                    throw;
-                }
-            }
-
-            // Safe timezone retrieval for cross-platform compatibility (Linux/Mac/Windows)
-            TimeZoneInfo ksaTimeZone;
-            try
+            // Seed data only in development
+            if (app.Environment.IsDevelopment())
             {
-                ksaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh");
+                await SeedData.InitializeAsync(scope.ServiceProvider);
             }
-            catch (TimeZoneNotFoundException)
-            {
-                ksaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time");
-            }
+        }
 
-            // Schedule recurring job to mark absent students daily at 23:59 KSA time
-            RecurringJob.AddOrUpdate<IAttendanceBackgroundService>(
-                "mark-absent-students",
-                service => service.MarkAbsentForMissingAttendanceAsync(null),
-                "59 23 * * *",
-                new RecurringJobOptions
-                {
-                    TimeZone = ksaTimeZone
-                });
+        // Schedule recurring job to mark absent students daily at 23:59 KSA time
+        RecurringJob.AddOrUpdate<IAttendanceBackgroundService>(
+            "mark-absent-students",
+            service => service.MarkAbsentForMissingAttendanceAsync(null),
+            "59 23 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time")
+            });
 
         app.Run();
     }
