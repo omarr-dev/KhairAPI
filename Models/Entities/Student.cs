@@ -20,6 +20,11 @@ namespace KhairAPI.Models.Entities
 
         public string? GuardianPhone { get; set; }
 
+        // Student contact info
+        public string? Phone { get; set; }
+        
+        public string? IdNumber { get; set; }
+
         // Memorization tracking
         public MemorizationDirection MemorizationDirection { get; set; } = MemorizationDirection.Forward;
 

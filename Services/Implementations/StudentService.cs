@@ -203,6 +203,8 @@ namespace KhairAPI.Services.Implementations
                 DateOfBirth = student.DateOfBirth,
                 GuardianName = student.GuardianName,
                 GuardianPhone = student.GuardianPhone,
+                Phone = student.Phone,
+                IdNumber = student.IdNumber,
                 MemorizationDirection = student.MemorizationDirection.ToString(),
                 CurrentSurahNumber = student.CurrentSurahNumber,
                 CurrentSurahName = surah?.Name,
@@ -292,6 +294,8 @@ namespace KhairAPI.Services.Implementations
                     : null,
                 GuardianName = dto.GuardianName,
                 GuardianPhone = dto.GuardianPhone,
+                Phone = dto.Phone,
+                IdNumber = dto.IdNumber,
                 MemorizationDirection = direction,
                 CurrentSurahNumber = dto.CurrentSurahNumber,
                 CurrentVerse = dto.CurrentVerse,
@@ -335,6 +339,8 @@ namespace KhairAPI.Services.Implementations
                 : null;
             student.GuardianName = dto.GuardianName;
             student.GuardianPhone = dto.GuardianPhone;
+            student.Phone = dto.Phone;
+            student.IdNumber = dto.IdNumber;
 
             await _context.SaveChangesAsync();
             return await GetStudentByIdAsync(id);
@@ -532,6 +538,8 @@ namespace KhairAPI.Services.Implementations
                 DateOfBirth = student.DateOfBirth,
                 GuardianName = student.GuardianName,
                 GuardianPhone = student.GuardianPhone,
+                Phone = student.Phone,
+                IdNumber = student.IdNumber,
                 MemorizationDirection = student.MemorizationDirection.ToString(),
                 CurrentSurahNumber = student.CurrentSurahNumber,
                 CurrentVerse = student.CurrentVerse,

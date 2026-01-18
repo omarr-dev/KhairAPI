@@ -14,6 +14,8 @@ namespace KhairAPI.Models.DTOs
         public DateTime? DateOfBirth { get; set; }
         public string? GuardianName { get; set; }
         public string? GuardianPhone { get; set; }
+        public string? Phone { get; set; }
+        public string? IdNumber { get; set; }
         
         // Memorization tracking
         public string MemorizationDirection { get; set; } = "Forward";
@@ -54,6 +56,11 @@ namespace KhairAPI.Models.DTOs
         [Phone(ErrorMessage = "رقم هاتف ولي الأمر غير صالح")]
         public string? GuardianPhone { get; set; }
 
+        [Phone(ErrorMessage = "رقم هاتف الطالب غير صالح")]
+        public string? Phone { get; set; }
+
+        public string? IdNumber { get; set; }
+
         // Memorization tracking
         public string MemorizationDirection { get; set; } = "Forward";
         public int CurrentSurahNumber { get; set; } = 1;
@@ -78,6 +85,11 @@ namespace KhairAPI.Models.DTOs
 
         [Phone(ErrorMessage = "رقم هاتف ولي الأمر غير صالح")]
         public string? GuardianPhone { get; set; }
+
+        [Phone(ErrorMessage = "رقم هاتف الطالب غير صالح")]
+        public string? Phone { get; set; }
+
+        public string? IdNumber { get; set; }
     }
     
     public class UpdateMemorizationDto
@@ -130,6 +142,8 @@ namespace KhairAPI.Models.DTOs
         public DateTime? DateOfBirth { get; set; }
         public string? GuardianName { get; set; }
         public string? GuardianPhone { get; set; }
+        public string? Phone { get; set; }
+        public string? IdNumber { get; set; }
         
         // Memorization tracking
         public string MemorizationDirection { get; set; } = "Forward";
