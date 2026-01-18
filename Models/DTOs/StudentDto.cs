@@ -53,10 +53,10 @@ namespace KhairAPI.Models.DTOs
 
         public string? GuardianName { get; set; }
 
-        [Phone(ErrorMessage = "رقم هاتف ولي الأمر غير صالح")]
+        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف ولي الأمر غير صالح.")]
         public string? GuardianPhone { get; set; }
 
-        [Phone(ErrorMessage = "رقم هاتف الطالب غير صالح")]
+        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف الطالب ")]
         public string? Phone { get; set; }
 
         public string? IdNumber { get; set; }
@@ -83,10 +83,10 @@ namespace KhairAPI.Models.DTOs
 
         public string? GuardianName { get; set; }
 
-        [Phone(ErrorMessage = "رقم هاتف ولي الأمر غير صالح")]
+        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف ولي الأمر غير صالح. يجب أن يبدأ بـ +966")]
         public string? GuardianPhone { get; set; }
 
-        [Phone(ErrorMessage = "رقم هاتف الطالب غير صالح")]
+        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف الطالب غير صالح. يجب أن يبدأ بـ +966")]
         public string? Phone { get; set; }
 
         public string? IdNumber { get; set; }
