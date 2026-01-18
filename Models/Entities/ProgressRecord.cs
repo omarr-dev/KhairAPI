@@ -48,8 +48,9 @@ namespace KhairAPI.Models.Entities
 
     public enum ProgressType
     {
-        Memorization, // حفظ
-        Revision      // مراجعة
+        Memorization,   // حفظ
+        Revision,       // مراجعة
+        Consolidation   // التثبيت
     }
 
     public enum QualityRating

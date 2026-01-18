@@ -238,7 +238,13 @@ namespace KhairAPI.Services.Implementations
                     HalaqaId = p.HalaqaId,
                     HalaqaName = p.Halaqa?.Name ?? "",
                     Date = p.Date,
-                    Type = p.Type == ProgressType.Memorization ? "حفظ جديد" : "مراجعة",
+                    Type = p.Type switch
+                    {
+                        ProgressType.Memorization => "حفظ جديد",
+                        ProgressType.Revision => "مراجعة",
+                        ProgressType.Consolidation => "التثبيت",
+                        _ => "غير محدد"
+                    },
                     SurahName = p.SurahName,
                     FromVerse = p.FromVerse,
                     ToVerse = p.ToVerse,
