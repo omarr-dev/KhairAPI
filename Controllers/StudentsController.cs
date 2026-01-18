@@ -215,5 +215,117 @@ namespace KhairAPI.Controllers
 
             return Ok(student);
         }
+
+        #region Daily Targets
+
+        [HttpGet("{id}/target")]
+        public async Task<IActionResult> GetStudentTarget(int id, [FromServices] IStudentTargetService targetService)
+        {
+            // Check access
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
+                if (!teacherStudents.Any(s => s.Id == id))
+                    return Forbid();
+            }
+
+            var target = await targetService.GetTargetAsync(id);
+            return Ok(target ?? new StudentTargetDto { StudentId = id });
+        }
+
+        [HttpPut("{id}/target")]
+        public async Task<IActionResult> SetStudentTarget(int id, [FromBody] SetStudentTargetDto dto, [FromServices] IStudentTargetService targetService)
+        {
+            // Check access
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
+                if (!teacherStudents.Any(s => s.Id == id))
+                    return Forbid();
+            }
+
+            try
+            {
+                var target = await targetService.SetTargetAsync(id, dto);
+                return Ok(target);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("targets/bulk")]
+        [Authorize(Policy = "SupervisorOnly")]
+        public async Task<IActionResult> BulkSetTargets([FromBody] BulkSetTargetDto dto, [FromServices] IStudentTargetService targetService)
+        {
+            try
+            {
+                var count = await targetService.BulkSetTargetAsync(dto);
+                return Ok(new { message = $"تم تحديث الأهداف لـ {count} طالب", count });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("targets/bulk/my-students")]
+        public async Task<IActionResult> BulkSetMyStudentsTargets([FromBody] SetStudentTargetDto dto, [FromServices] IStudentTargetService targetService)
+        {
+            var teacherId = await _currentUserService.GetTeacherIdAsync();
+            if (!teacherId.HasValue)
+                return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+            try
+            {
+                var bulkDto = new BulkSetTargetDto
+                {
+                    TeacherId = teacherId.Value,
+                    MemorizationLinesTarget = dto.MemorizationLinesTarget,
+                    RevisionPagesTarget = dto.RevisionPagesTarget,
+                    ConsolidationPagesTarget = dto.ConsolidationPagesTarget
+                };
+                var count = await targetService.BulkSetTargetAsync(bulkDto);
+                return Ok(new { message = $"تم تحديث الأهداف لـ {count} طالب", count });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("{id}/achievements")]
+        public async Task<IActionResult> GetAchievementHistory(
+            int id, 
+            [FromQuery] AchievementHistoryFilter? filter,
+            [FromServices] IStudentTargetService targetService)
+        {
+            // Check access
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
+                if (!teacherStudents.Any(s => s.Id == id))
+                    return Forbid();
+            }
+
+            var achievements = await targetService.GetAchievementHistoryAsync(id, filter);
+            return Ok(achievements);
+        }
+
+        #endregion
     }
 }
+

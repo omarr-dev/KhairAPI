@@ -165,6 +165,9 @@ namespace KhairAPI.Models.DTOs
         // Recent Records
         public List<ProgressRecordDto> RecentProgress { get; set; } = new List<ProgressRecordDto>();
         public List<AttendanceRecordDto> RecentAttendance { get; set; } = new List<AttendanceRecordDto>();
+        
+        // Daily targets
+        public StudentTargetDto? Target { get; set; }
     }
 
     /// <summary>
@@ -183,4 +186,102 @@ namespace KhairAPI.Models.DTOs
         public string AverageQualityText { get; set; } = string.Empty; // ممتاز، جيد جداً، etc.
         public int TotalProgressRecords { get; set; }
     }
+
+    /// <summary>
+    /// Student daily target settings
+    /// - Memorization: lines per day (سطر)
+    /// - Revision: pages per day (وجه)
+    /// - Consolidation: pages per day (وجه)
+    /// </summary>
+    public class StudentTargetDto
+    {
+        public int StudentId { get; set; }
+        public int? MemorizationLinesTarget { get; set; }
+        public int? RevisionPagesTarget { get; set; }
+        public int? ConsolidationPagesTarget { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// DTO for setting a single student's target
+    /// </summary>
+    public class SetStudentTargetDto
+    {
+        [Range(0, 100, ErrorMessage = "عدد الأسطر يجب أن يكون بين 0 و 100")]
+        public int? MemorizationLinesTarget { get; set; }
+
+        [Range(0, 50, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 50")]
+        public int? RevisionPagesTarget { get; set; }
+
+        [Range(0, 50, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 50")]
+        public int? ConsolidationPagesTarget { get; set; }
+    }
+
+    /// <summary>
+    /// DTO for bulk setting targets for multiple students
+    /// Supports: specific student IDs, all students of a teacher, or all students in a halaqa
+    /// </summary>
+    public class BulkSetTargetDto
+    {
+        /// <summary>
+        /// Specific student IDs to set targets for (optional)
+        /// </summary>
+        public List<int>? StudentIds { get; set; }
+
+        /// <summary>
+        /// Set targets for all students of this teacher (optional)
+        /// </summary>
+        public int? TeacherId { get; set; }
+
+        /// <summary>
+        /// Set targets for all students in this halaqa (optional)
+        /// </summary>
+        public int? HalaqaId { get; set; }
+
+        [Range(0, 100, ErrorMessage = "عدد الأسطر يجب أن يكون بين 0 و 100")]
+        public int? MemorizationLinesTarget { get; set; }
+
+        [Range(0, 50, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 50")]
+        public int? RevisionPagesTarget { get; set; }
+
+        [Range(0, 50, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 50")]
+        public int? ConsolidationPagesTarget { get; set; }
+    }
+
+    /// <summary>
+    /// Achievement record showing progress vs target for a specific date
+    /// </summary>
+    public class TargetAchievementDto
+    {
+        public int StudentId { get; set; }
+        public DateTime Date { get; set; }
+        
+        // Targets
+        public int? MemorizationLinesTarget { get; set; }
+        public int? RevisionPagesTarget { get; set; }
+        public int? ConsolidationPagesTarget { get; set; }
+        
+        // Achievements
+        public int MemorizationLinesAchieved { get; set; }
+        public int RevisionPagesAchieved { get; set; }
+        public int ConsolidationPagesAchieved { get; set; }
+        
+        // Calculated percentages
+        public double? MemorizationPercentage => MemorizationLinesTarget > 0 
+            ? Math.Min(100, (double)MemorizationLinesAchieved / MemorizationLinesTarget.Value * 100) : null;
+        public double? RevisionPercentage => RevisionPagesTarget > 0 
+            ? Math.Min(100, (double)RevisionPagesAchieved / RevisionPagesTarget.Value * 100) : null;
+        public double? ConsolidationPercentage => ConsolidationPagesTarget > 0 
+            ? Math.Min(100, (double)ConsolidationPagesAchieved / ConsolidationPagesTarget.Value * 100) : null;
+    }
+
+    /// <summary>
+    /// Filter for achievement history queries
+    /// </summary>
+    public class AchievementHistoryFilter
+    {
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+    }
 }
+

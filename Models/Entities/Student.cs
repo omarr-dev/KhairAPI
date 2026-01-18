@@ -45,6 +45,10 @@ namespace KhairAPI.Models.Entities
         public ICollection<ProgressRecord> ProgressRecords { get; set; } = new List<ProgressRecord>();
         public ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
 
+        // Target and achievement tracking
+        public StudentTarget? Target { get; set; }
+        public ICollection<TargetAchievement> TargetAchievements { get; set; } = new List<TargetAchievement>();
+
         // Computed property for full name
         public string FullName => $"{FirstName} {LastName}";
     }

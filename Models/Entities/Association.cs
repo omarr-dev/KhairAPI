@@ -68,5 +68,7 @@ namespace KhairAPI.Models.Entities
         public ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
         public ICollection<ProgressRecord> ProgressRecords { get; set; } = new List<ProgressRecord>();
         public ICollection<TeacherAttendance> TeacherAttendances { get; set; } = new List<TeacherAttendance>();
+        public ICollection<StudentTarget> StudentTargets { get; set; } = new List<StudentTarget>();
+        public ICollection<TargetAchievement> TargetAchievements { get; set; } = new List<TargetAchievement>();
     }
 }
