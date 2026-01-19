@@ -96,8 +96,8 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
-                if (!teacherStudents.Any(s => s.Id == id))
+                var hasAccess = await _studentService.IsStudentAssignedToTeacherAsync(id, teacherId.Value);
+                if (!hasAccess)
                     return Forbid();
             }
 
@@ -113,8 +113,8 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
-                if (!teacherStudents.Any(s => s.Id == id))
+                var hasAccess = await _studentService.IsStudentAssignedToTeacherAsync(id, teacherId.Value);
+                if (!hasAccess)
                     return Forbid();
             }
 
@@ -204,8 +204,8 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
-                if (!teacherStudents.Any(s => s.Id == id))
+                var hasAccess = await _studentService.IsStudentAssignedToTeacherAsync(id, teacherId.Value);
+                if (!hasAccess)
                     return Forbid();
             }
 
@@ -228,8 +228,8 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
-                if (!teacherStudents.Any(s => s.Id == id))
+                var hasAccess = await _studentService.IsStudentAssignedToTeacherAsync(id, teacherId.Value);
+                if (!hasAccess)
                     return Forbid();
             }
 
@@ -247,8 +247,8 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
-                if (!teacherStudents.Any(s => s.Id == id))
+                var hasAccess = await _studentService.IsStudentAssignedToTeacherAsync(id, teacherId.Value);
+                if (!hasAccess)
                     return Forbid();
             }
 
@@ -303,10 +303,10 @@ namespace KhairAPI.Controllers
             }
         }
 
-        [HttpGet("{id}/achievements")]
-        public async Task<IActionResult> GetAchievementHistory(
+        [HttpGet("{id}/achievement")]
+        public async Task<IActionResult> GetAchievement(
             int id, 
-            [FromQuery] AchievementHistoryFilter? filter,
+            [FromQuery] DateTime? date,
             [FromServices] IStudentTargetService targetService)
         {
             // Check access
@@ -316,13 +316,19 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-                var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
-                if (!teacherStudents.Any(s => s.Id == id))
+                var hasAccess = await _studentService.IsStudentAssignedToTeacherAsync(id, teacherId.Value);
+                if (!hasAccess)
                     return Forbid();
             }
 
-            var achievements = await targetService.GetAchievementHistoryAsync(id, filter);
-            return Ok(achievements);
+            // Default to today if no date specified
+            var targetDate = date ?? DateTime.UtcNow.Date;
+            var achievement = await targetService.CalculateAchievementAsync(id, targetDate);
+            
+            if (achievement == null)
+                return Ok(new { message = "لم يتم تحديد هدف لهذا الطالب" });
+                
+            return Ok(achievement);
         }
 
         #endregion

@@ -434,6 +434,16 @@ namespace KhairAPI.Services.Implementations
             return true;
         }
 
+        /// <summary>
+        /// Efficiently checks if a student is assigned to a teacher.
+        /// Used for authorization checks without fetching all teacher students.
+        /// </summary>
+        public async Task<bool> IsStudentAssignedToTeacherAsync(int studentId, int teacherId)
+        {
+            return await _context.StudentHalaqat
+                .AnyAsync(sh => sh.StudentId == studentId && sh.TeacherId == teacherId && sh.IsActive);
+        }
+
         public async Task<IEnumerable<StudentAssignmentDto>> GetStudentAssignmentsAsync(int studentId)
         {
             var assignments = await _context.StudentHalaqat

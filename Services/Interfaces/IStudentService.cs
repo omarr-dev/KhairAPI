@@ -15,6 +15,7 @@ namespace KhairAPI.Services.Interfaces
         Task<StudentDto?> UpdateMemorizationAsync(int id, UpdateMemorizationDto dto);
         Task<bool> DeleteStudentAsync(int id);
         Task<bool> AssignStudentToHalaqaAsync(AssignStudentDto dto);
+        Task<bool> IsStudentAssignedToTeacherAsync(int studentId, int teacherId);
         Task<IEnumerable<StudentDto>> SearchStudentsAsync(string searchTerm);
         Task<IEnumerable<StudentAssignmentDto>> GetStudentAssignmentsAsync(int studentId);
         Task<StudentAssignmentDto?> UpdateAssignmentAsync(int studentId, int halaqaId, int teacherId, UpdateAssignmentDto dto);

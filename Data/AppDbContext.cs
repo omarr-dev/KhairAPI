@@ -26,7 +26,6 @@ namespace KhairAPI.Data
         public DbSet<Attendance> Attendances { get; set; }
         public DbSet<TeacherAttendance> TeacherAttendances { get; set; }
         public DbSet<StudentTarget> StudentTargets { get; set; } = null!;
-        public DbSet<TargetAchievement> TargetAchievements { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -371,32 +370,7 @@ namespace KhairAPI.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // Configure TargetAchievement entity
-            modelBuilder.Entity<TargetAchievement>(entity =>
-            {
-                entity.HasKey(e => e.Id);
-                
-                // Unique constraint: one achievement record per student per day
-                entity.HasIndex(e => new { e.StudentId, e.Date }).IsUnique();
-                entity.HasIndex(e => e.Date);
-                entity.HasIndex(e => e.AssociationId);
 
-                // Configure relationships
-                entity.HasOne(e => e.Student)
-                    .WithMany(s => s.TargetAchievements)
-                    .HasForeignKey(e => e.StudentId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                // Multi-tenancy: Global query filter
-                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
-                    || e.AssociationId == _tenantService.CurrentAssociationId);
-
-                // Foreign key to Association
-                entity.HasOne(e => e.Association)
-                    .WithMany(a => a.TargetAchievements)
-                    .HasForeignKey(e => e.AssociationId)
-                    .OnDelete(DeleteBehavior.Restrict);
-            });
         }
 
         /// <summary>

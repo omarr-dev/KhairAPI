@@ -3,7 +3,8 @@ using KhairAPI.Models.DTOs;
 namespace KhairAPI.Services.Interfaces
 {
     /// <summary>
-    /// Service for managing student daily targets and tracking achievement history.
+    /// Service for managing student daily targets.
+    /// Simplified: Targets are stored, achievements are calculated on-demand from ProgressRecords.
     /// </summary>
     public interface IStudentTargetService
     {
@@ -24,13 +25,9 @@ namespace KhairAPI.Services.Interfaces
         Task<int> BulkSetTargetAsync(BulkSetTargetDto dto);
 
         /// <summary>
-        /// Gets target achievement history for a student.
+        /// Calculates achievement for a student on a specific date (on-demand).
+        /// No background job needed - calculates from ProgressRecords.
         /// </summary>
-        Task<List<TargetAchievementDto>> GetAchievementHistoryAsync(int studentId, AchievementHistoryFilter? filter = null);
-
-        /// <summary>
-        /// Records daily achievements for all students. Should be called by a background job at end of day.
-        /// </summary>
-        Task RecordDailyAchievementsAsync();
+        Task<TargetAchievementDto?> CalculateAchievementAsync(int studentId, DateTime date);
     }
 }

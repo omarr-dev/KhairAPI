@@ -7,7 +7,8 @@ using KhairAPI.Services.Interfaces;
 namespace KhairAPI.Services.Implementations
 {
     /// <summary>
-    /// Implementation of IStudentTargetService for managing student daily targets.
+    /// Simplified service for managing student daily targets.
+    /// Achievements are calculated on-demand from ProgressRecords - no background job needed.
     /// </summary>
     public class StudentTargetService : IStudentTargetService
     {
@@ -85,8 +86,19 @@ namespace KhairAPI.Services.Implementations
 
             if (dto.StudentIds != null && dto.StudentIds.Any())
             {
-                // Specific student IDs provided
+                // Specific student IDs provided - validate they belong to current tenant
                 studentIds = dto.StudentIds;
+                
+                // Security: Validate that all student IDs belong to the current tenant
+                var validStudentIds = await _context.Students
+                    .Where(s => studentIds.Contains(s.Id))  // Query filter will auto-apply tenant
+                    .Select(s => s.Id)
+                    .ToListAsync();
+                    
+                if (validStudentIds.Count != studentIds.Count)
+                {
+                    throw new InvalidOperationException("بعض الطلاب غير موجودين أو لا ينتمون لهذه الجمعية.");
+                }
             }
             else if (dto.TeacherId.HasValue)
             {
@@ -154,130 +166,57 @@ namespace KhairAPI.Services.Implementations
             return studentIds.Count;
         }
 
-        public async Task<List<TargetAchievementDto>> GetAchievementHistoryAsync(int studentId, AchievementHistoryFilter? filter = null)
+        /// <summary>
+        /// Calculates achievement for a student on a specific date.
+        /// Simple approach: query ProgressRecords for the day and compare to target.
+        /// </summary>
+        public async Task<TargetAchievementDto?> CalculateAchievementAsync(int studentId, DateTime date)
         {
-            var query = _context.TargetAchievements
-                .Where(a => a.StudentId == studentId)
-                .OrderByDescending(a => a.Date)
-                .AsQueryable();
+            // Get the student's target
+            var target = await _context.StudentTargets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.StudentId == studentId);
 
-            if (filter?.FromDate.HasValue == true)
+            if (target == null)
             {
-                query = query.Where(a => a.Date >= filter.FromDate.Value);
+                return null; // No target set for this student
             }
 
-            if (filter?.ToDate.HasValue == true)
-            {
-                query = query.Where(a => a.Date <= filter.ToDate.Value);
-            }
+            var targetDate = date.Date;
 
-            var achievements = await query.Take(30).ToListAsync();
-
-            return achievements.Select(a => new TargetAchievementDto
-            {
-                StudentId = a.StudentId,
-                Date = a.Date,
-                MemorizationLinesTarget = a.MemorizationLinesTarget,
-                RevisionPagesTarget = a.RevisionPagesTarget,
-                ConsolidationPagesTarget = a.ConsolidationPagesTarget,
-                MemorizationLinesAchieved = a.MemorizationLinesAchieved,
-                RevisionPagesAchieved = a.RevisionPagesAchieved,
-                ConsolidationPagesAchieved = a.ConsolidationPagesAchieved
-            }).ToList();
-        }
-
-        public async Task RecordDailyAchievementsAsync()
-        {
-            // This method should be called by a background job at end of each day
-            // It calculates the actual achievements from ProgressRecords for the day
-            // OPTIMIZED: Uses batch queries instead of per-student queries to avoid N+1 problem
-            
-            var today = DateTime.UtcNow.Date;
-
-            // Get all students with targets (single query)
-            var studentsWithTargets = await _context.StudentTargets
-                .IgnoreQueryFilters() // Background job needs all tenants
-                .ToListAsync();
-
-            if (!studentsWithTargets.Any())
-            {
-                return; // No targets to process
-            }
-
-            var studentIds = studentsWithTargets.Select(t => t.StudentId).ToList();
-
-            // Batch fetch: Get all existing achievement records for today (single query)
-            var existingAchievementsList = await _context.TargetAchievements
-                .IgnoreQueryFilters()
-                .Where(a => studentIds.Contains(a.StudentId) && a.Date == today)
-                .Select(a => a.StudentId)
-                .ToListAsync();
-            var existingAchievements = existingAchievementsList.ToHashSet();
-
-            // Filter out students who already have achievements recorded
-            var studentsToProcess = studentsWithTargets
-                .Where(t => !existingAchievements.Contains(t.StudentId))
-                .ToList();
-
-            if (!studentsToProcess.Any())
-            {
-                return; // All students already have achievements recorded
-            }
-
-            var studentIdsToProcess = studentsToProcess.Select(t => t.StudentId).ToList();
-
-            // Batch fetch: Get all progress records for today for all students (single query)
-            var allTodayProgress = await _context.ProgressRecords
-                .IgnoreQueryFilters()
-                .Where(p => studentIdsToProcess.Contains(p.StudentId) && p.Date.Date == today)
-                .GroupBy(p => p.StudentId)
+            // Get progress for the specified date
+            var progress = await _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => p.StudentId == studentId && p.Date.Date == targetDate)
+                .GroupBy(p => p.Type)
                 .Select(g => new
                 {
-                    StudentId = g.Key,
-                    MemorizationVerses = g.Where(p => p.Type == ProgressType.Memorization)
-                        .Sum(p => p.ToVerse - p.FromVerse + 1),
-                    RevisionVerses = g.Where(p => p.Type == ProgressType.Revision)
-                        .Sum(p => p.ToVerse - p.FromVerse + 1),
-                    ConsolidationVerses = g.Where(p => p.Type == ProgressType.Consolidation)
-                        .Sum(p => p.ToVerse - p.FromVerse + 1)
+                    Type = g.Key,
+                    TotalVerses = g.Sum(p => p.ToVerse - p.FromVerse + 1)
                 })
-                .ToDictionaryAsync(x => x.StudentId);
+                .ToListAsync();
 
-            // Create achievement records for all students
-            var achievements = new List<TargetAchievement>();
-            
-            foreach (var target in studentsToProcess)
+            // Calculate achieved values
+            var memorizationVerses = progress.FirstOrDefault(p => p.Type == ProgressType.Memorization)?.TotalVerses ?? 0;
+            var revisionVerses = progress.FirstOrDefault(p => p.Type == ProgressType.Revision)?.TotalVerses ?? 0;
+            var consolidationVerses = progress.FirstOrDefault(p => p.Type == ProgressType.Consolidation)?.TotalVerses ?? 0;
+
+            // Convert verses to lines/pages (approximate: 1 page ≈ 15 verses, 1 line ≈ 1 verse)
+            var memorizationLines = memorizationVerses;
+            var revisionPages = (int)Math.Ceiling(revisionVerses / 15.0);
+            var consolidationPages = (int)Math.Ceiling(consolidationVerses / 15.0);
+
+            return new TargetAchievementDto
             {
-                // Get progress or default to zeros
-                var progress = allTodayProgress.GetValueOrDefault(target.StudentId);
-                
-                var memorizationVerses = progress?.MemorizationVerses ?? 0;
-                var revisionVerses = progress?.RevisionVerses ?? 0;
-                var consolidationVerses = progress?.ConsolidationVerses ?? 0;
-
-                // Convert verses to lines/pages (approximate: 1 page ≈ 15 verses, 1 line ≈ 1 verse)
-                var memorizationLines = memorizationVerses;
-                var revisionPages = (int)Math.Ceiling(revisionVerses / 15.0);
-                var consolidationPages = (int)Math.Ceiling(consolidationVerses / 15.0);
-
-                achievements.Add(new TargetAchievement
-                {
-                    StudentId = target.StudentId,
-                    Date = today,
-                    MemorizationLinesTarget = target.MemorizationLinesTarget,
-                    RevisionPagesTarget = target.RevisionPagesTarget,
-                    ConsolidationPagesTarget = target.ConsolidationPagesTarget,
-                    MemorizationLinesAchieved = memorizationLines,
-                    RevisionPagesAchieved = revisionPages,
-                    ConsolidationPagesAchieved = consolidationPages,
-                    CreatedAt = DateTime.UtcNow,
-                    AssociationId = target.AssociationId
-                });
-            }
-
-            // Batch insert all achievements (single SaveChanges call)
-            _context.TargetAchievements.AddRange(achievements);
-            await _context.SaveChangesAsync();
+                StudentId = studentId,
+                Date = targetDate,
+                MemorizationLinesTarget = target.MemorizationLinesTarget,
+                RevisionPagesTarget = target.RevisionPagesTarget,
+                ConsolidationPagesTarget = target.ConsolidationPagesTarget,
+                MemorizationLinesAchieved = memorizationLines,
+                RevisionPagesAchieved = revisionPages,
+                ConsolidationPagesAchieved = consolidationPages
+            };
         }
 
         private static StudentTargetDto MapToDto(StudentTarget target)

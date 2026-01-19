@@ -274,14 +274,4 @@ namespace KhairAPI.Models.DTOs
         public double? ConsolidationPercentage => ConsolidationPagesTarget > 0 
             ? Math.Min(100, (double)ConsolidationPagesAchieved / ConsolidationPagesTarget.Value * 100) : null;
     }
-
-    /// <summary>
-    /// Filter for achievement history queries
-    /// </summary>
-    public class AchievementHistoryFilter
-    {
-        public DateTime? FromDate { get; set; }
-        public DateTime? ToDate { get; set; }
-    }
 }
-
