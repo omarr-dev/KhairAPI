@@ -497,9 +497,10 @@ namespace KhairAPI.Services.Implementations
                     ? (double)attendance.Count(a => a.Status == AttendanceStatus.Present) / attendance.Count * 100
                     : 0;
 
+                // For new students without progress, use their creation date instead of 999
                 var daysSinceProgress = lastProgress != null
                     ? (today - lastProgress.Date).Days
-                    : 999;
+                    : (today - student.CreatedAt.Date).Days;
 
                 var consecutiveAbsences = 0;
                 foreach (var a in attendance)
@@ -592,9 +593,10 @@ namespace KhairAPI.Services.Implementations
                     ? (double)attendance.Count(a => a.Status == AttendanceStatus.Present) / attendance.Count * 100
                     : 0;
 
+                // For new students without progress, use their creation date instead of 999
                 var daysSinceProgress = lastProgress != null
                     ? (today - lastProgress.Date).Days
-                    : 999;
+                    : (today - student.CreatedAt.Date).Days;
 
                 var consecutiveAbsences = 0;
                 foreach (var a in attendance)
