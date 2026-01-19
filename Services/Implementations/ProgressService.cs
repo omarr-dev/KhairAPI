@@ -223,6 +223,38 @@ namespace KhairAPI.Services.Implementations
             return true;
         }
 
+        public async Task<ProgressRecordDto?> GetLastProgressByTypeAsync(int studentId, int type)
+        {
+            // Validate type is within valid range (0, 1, or 2)
+            if (type < 0 || type > 2)
+            {
+                return null;
+            }
+
+            var progressType = (ProgressType)type;
+
+            var lastRecord = await _context.ProgressRecords
+                .Include(pr => pr.Student)
+                .Include(pr => pr.Teacher)
+                .Include(pr => pr.Halaqa)
+                .AsSplitQuery()
+                .Where(pr => pr.StudentId == studentId && pr.Type == progressType)
+                .OrderByDescending(pr => pr.Date)
+                .ThenByDescending(pr => pr.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            return lastRecord != null ? MapToDto(lastRecord) : null;
+        }
+
+        public async Task<bool> TeacherHasAccessToStudentAsync(int teacherId, int studentId)
+        {
+            // Check if there's an active assignment between this teacher and student
+            var hasActiveAssignment = await _context.StudentHalaqat
+                .AnyAsync(sh => sh.TeacherId == teacherId && sh.StudentId == studentId && sh.IsActive);
+
+            return hasActiveAssignment;
+        }
+
         private ProgressRecordDto MapToDto(ProgressRecord record)
         {
             return new ProgressRecordDto

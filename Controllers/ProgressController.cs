@@ -64,6 +64,32 @@ namespace KhairAPI.Controllers
             return Ok(summary);
         }
 
+        [HttpGet("student/{studentId}/last")]
+        public async Task<IActionResult> GetLastProgressByType(int studentId, [FromQuery] int type)
+        {
+            // Validate input parameters
+            if (studentId <= 0)
+                return BadRequest(new { message = "معرف الطالب غير صحيح" });
+
+            if (type < 0 || type > 2)
+                return BadRequest(new { message = "نوع التسميع غير صحيح. القيم المسموحة: 0 (حفظ)، 1 (مراجعة)، 2 (تثبيت)" });
+
+            // Authorization: If teacher, verify they have access to this student
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                var hasAccess = await _progressService.TeacherHasAccessToStudentAsync(teacherId.Value, studentId);
+                if (!hasAccess)
+                    return Forbid();
+            }
+
+            var lastProgress = await _progressService.GetLastProgressByTypeAsync(studentId, type);
+            return Ok(lastProgress);
+        }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProgressRecord(int id)
         {
