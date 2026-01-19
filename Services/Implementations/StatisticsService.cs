@@ -446,7 +446,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<List<AtRiskStudentDto>> GetAtRiskStudentsAsync(int limit = 20)
         {
             var today = DateTime.UtcNow.Date;
-            var fromDate = today.AddDays(-7);
+            var fromDate = today.AddDays(-30);
 
             // Load all students with their halaqa assignments
             var students = await _context.Students
@@ -488,13 +488,13 @@ namespace KhairAPI.Services.Implementations
                 if (activeAssignment == null) continue;
 
                 // Get attendance from in-memory dictionary (O(1) lookup)
-                var attendance = attendanceByStudent.TryGetValue(student.Id, out var att) ? att : new List<Attendance>();
+                var studentAttendance = attendanceByStudent.TryGetValue(student.Id, out var att) ? att : new List<Attendance>();
 
                 // Get latest progress from in-memory dictionary (O(1) lookup)
                 var lastProgress = latestProgressByStudent.TryGetValue(student.Id, out var prog) ? prog : null;
 
-                var attendanceRate = attendance.Any()
-                    ? (double)attendance.Count(a => a.Status == AttendanceStatus.Present) / attendance.Count * 100
+                var attendanceRate = studentAttendance.Any()
+                    ? (double)studentAttendance.Count(a => a.Status == AttendanceStatus.Present) / studentAttendance.Count * 100
                     : 0;
 
                 // For new students without progress, use their creation date instead of 999
@@ -503,7 +503,7 @@ namespace KhairAPI.Services.Implementations
                     : (today - student.CreatedAt.Date).Days;
 
                 var consecutiveAbsences = 0;
-                foreach (var a in attendance)
+                foreach (var a in studentAttendance)
                 {
                     if (a.Status == AttendanceStatus.Absent)
                         consecutiveAbsences++;
@@ -511,7 +511,38 @@ namespace KhairAPI.Services.Implementations
                         break;
                 }
 
-                if (attendanceRate < 70 || daysSinceProgress >= 7 || consecutiveAbsences >= 3)
+                // Check for 3 absences in the last 5 active schedule days
+                var activeDays = ParseActiveDays(activeAssignment.Halaqa?.ActiveDays);
+                var enrollmentDate = activeAssignment.EnrollmentDate.Date;
+                var absencesInLast5Schedule = 0;
+                var scheduledDaysChecked = 0;
+                var currentCheckDate = today;
+
+                // Look back up to 30 days to find 5 scheduled days that are on or after enrollment
+                while (scheduledDaysChecked < 5 && (today - currentCheckDate).Days < 30 && currentCheckDate >= enrollmentDate)
+                {
+                    if (activeDays.Contains((int)currentCheckDate.DayOfWeek))
+                    {
+                        var record = studentAttendance.FirstOrDefault(a => a.Date.Date == currentCheckDate.Date);
+                        
+                        // Count as absence if explicitly marked Absent, 
+                        // or if no record exists for a past scheduled date (missed marking)
+                        if (record != null)
+                        {
+                            if (record.Status == AttendanceStatus.Absent)
+                                absencesInLast5Schedule++;
+                        }
+                        else if (currentCheckDate < today)
+                        {
+                            absencesInLast5Schedule++;
+                        }
+
+                        scheduledDaysChecked++;
+                    }
+                    currentCheckDate = currentCheckDate.AddDays(-1);
+                }
+
+                if (absencesInLast5Schedule >= 3)
                 {
                     atRiskStudents.Add(new AtRiskStudentDto
                     {
@@ -527,9 +558,8 @@ namespace KhairAPI.Services.Implementations
             }
 
             return atRiskStudents
-                .OrderBy(s => s.AttendanceRate)
-                .ThenByDescending(s => s.ConsecutiveAbsences)
-                .ThenByDescending(s => s.DaysSinceLastProgress)
+                .OrderByDescending(s => s.ConsecutiveAbsences)
+                .ThenBy(s => s.AttendanceRate)
                 .Take(limit)
                 .ToList();
         }
@@ -537,7 +567,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<List<AtRiskStudentDto>> GetTeacherAtRiskStudentsAsync(int teacherId, int limit = 10)
         {
             var today = DateTime.UtcNow.Date;
-            var fromDate = today.AddDays(-7);
+            var fromDate = today.AddDays(-30);
 
             // Get student IDs for this teacher (use HashSet for O(1) lookups)
             var studentIdsList = await _context.StudentHalaqat
@@ -584,13 +614,13 @@ namespace KhairAPI.Services.Implementations
                 if (activeAssignment == null) continue;
 
                 // Get attendance from in-memory dictionary (O(1) lookup)
-                var attendance = attendanceByStudent.TryGetValue(student.Id, out var att) ? att : new List<Attendance>();
+                var studentAttendance = attendanceByStudent.TryGetValue(student.Id, out var att) ? att : new List<Attendance>();
 
                 // Get latest progress from in-memory dictionary (O(1) lookup)
                 var lastProgress = latestProgressByStudent.TryGetValue(student.Id, out var prog) ? prog : null;
 
-                var attendanceRate = attendance.Any()
-                    ? (double)attendance.Count(a => a.Status == AttendanceStatus.Present) / attendance.Count * 100
+                var attendanceRate = studentAttendance.Any()
+                    ? (double)studentAttendance.Count(a => a.Status == AttendanceStatus.Present) / studentAttendance.Count * 100
                     : 0;
 
                 // For new students without progress, use their creation date instead of 999
@@ -599,7 +629,7 @@ namespace KhairAPI.Services.Implementations
                     : (today - student.CreatedAt.Date).Days;
 
                 var consecutiveAbsences = 0;
-                foreach (var a in attendance)
+                foreach (var a in studentAttendance)
                 {
                     if (a.Status == AttendanceStatus.Absent)
                         consecutiveAbsences++;
@@ -607,7 +637,38 @@ namespace KhairAPI.Services.Implementations
                         break;
                 }
 
-                if (attendanceRate < 70 || daysSinceProgress >= 7 || consecutiveAbsences >= 3)
+                // Check for 3 absences in the last 5 active schedule days
+                var activeDays = ParseActiveDays(activeAssignment.Halaqa?.ActiveDays);
+                var enrollmentDate = activeAssignment.EnrollmentDate.Date;
+                var absencesInLast5Schedule = 0;
+                var scheduledDaysChecked = 0;
+                var currentCheckDate = today;
+
+                // Look back up to 30 days to find 5 scheduled days that are on or after enrollment
+                while (scheduledDaysChecked < 5 && (today - currentCheckDate).Days < 30 && currentCheckDate >= enrollmentDate)
+                {
+                    if (activeDays.Contains((int)currentCheckDate.DayOfWeek))
+                    {
+                        var record = studentAttendance.FirstOrDefault(a => a.Date.Date == currentCheckDate.Date);
+
+                        // Count as absence if explicitly marked Absent, 
+                        // or if no record exists for a past scheduled date (missed marking)
+                        if (record != null)
+                        {
+                            if (record.Status == AttendanceStatus.Absent)
+                                absencesInLast5Schedule++;
+                        }
+                        else if (currentCheckDate < today)
+                        {
+                            absencesInLast5Schedule++;
+                        }
+
+                        scheduledDaysChecked++;
+                    }
+                    currentCheckDate = currentCheckDate.AddDays(-1);
+                }
+
+                if (absencesInLast5Schedule >= 3)
                 {
                     atRiskStudents.Add(new AtRiskStudentDto
                     {
@@ -623,10 +684,21 @@ namespace KhairAPI.Services.Implementations
             }
 
             return atRiskStudents
-                .OrderBy(s => s.AttendanceRate)
-                .ThenByDescending(s => s.ConsecutiveAbsences)
-                .ThenByDescending(s => s.DaysSinceLastProgress)
+                .OrderByDescending(s => s.ConsecutiveAbsences)
+                .ThenBy(s => s.AttendanceRate)
                 .Take(limit)
+                .ToList();
+        }
+
+        private List<int> ParseActiveDays(string? activeDays)
+        {
+            if (string.IsNullOrWhiteSpace(activeDays))
+                return new List<int> { 0, 1, 2, 3, 4 }; // Default to Sun-Thu if not set
+
+            return activeDays
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(d => int.TryParse(d.Trim(), out var day) ? day : -1)
+                .Where(d => d >= 0 && d <= 6)
                 .ToList();
         }
     }
