@@ -173,7 +173,10 @@ namespace KhairAPI.Services.Implementations
         /// </summary>
         public async Task<TargetAchievementDto?> CalculateAchievementAsync(int studentId, DateTime date)
         {
-            var targetDate = date.Date;
+            // Ensure date is UTC as Npgsql requires UTC for timestamp with time zone
+            var targetDate = date.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(date.Date, DateTimeKind.Utc)
+                : date.Date;
             var nextDay = targetDate.AddDays(1);
 
             // Get target first (quick single-row lookup)
