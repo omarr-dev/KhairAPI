@@ -20,6 +20,12 @@ namespace KhairAPI.Models.DTOs
         public int ToVerse { get; set; }
         public string Quality { get; set; } = string.Empty; // ممتاز/جيد جداً/جيد/مقبول
         public string? Notes { get; set; }
+        
+        /// <summary>
+        /// عدد الأسطر في المصحف لهذا التسميع
+        /// </summary>
+        public double NumberLines { get; set; }
+        
         public DateTime CreatedAt { get; set; }
     }
 

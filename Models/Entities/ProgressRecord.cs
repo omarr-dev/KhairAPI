@@ -34,6 +34,12 @@ namespace KhairAPI.Models.Entities
 
         public string? Notes { get; set; }
 
+        /// <summary>
+        /// Pre-calculated number of Mushaf lines for this progress record.
+        /// Stored at creation time for efficient aggregation queries.
+        /// </summary>
+        public double NumberLines { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Multi-tenancy

@@ -25,4 +25,10 @@
     <PackageReference Include="ClosedXML" Version="0.102.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Data/quran-verse-lines.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

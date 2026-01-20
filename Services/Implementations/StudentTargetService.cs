@@ -168,43 +168,46 @@ namespace KhairAPI.Services.Implementations
 
         /// <summary>
         /// Calculates achievement for a student on a specific date.
-        /// Simple approach: query ProgressRecords for the day and compare to target.
+        /// Uses pre-stored NumberLines values for efficient aggregation.
         /// </summary>
         public async Task<TargetAchievementDto?> CalculateAchievementAsync(int studentId, DateTime date)
         {
-            // Get the student's target
-            var target = await _context.StudentTargets
+            var targetDate = date.Date;
+            var nextDay = targetDate.AddDays(1);
+
+            // Parallel database calls for better performance
+            var targetTask = _context.StudentTargets
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.StudentId == studentId);
 
+            // Use SQL aggregation with stored NumberLines
+            var progressTask = _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => p.StudentId == studentId && p.Date >= targetDate && p.Date < nextDay)
+                .GroupBy(p => p.Type)
+                .Select(g => new { Type = g.Key, TotalLines = g.Sum(p => p.NumberLines) })
+                .ToListAsync();
+
+            await Task.WhenAll(targetTask, progressTask);
+
+            var target = targetTask.Result;
             if (target == null)
             {
                 return null; // No target set for this student
             }
 
-            var targetDate = date.Date;
+            var progressByType = progressTask.Result;
 
-            // Get progress for the specified date
-            var progress = await _context.ProgressRecords
-                .AsNoTracking()
-                .Where(p => p.StudentId == studentId && p.Date.Date == targetDate)
-                .GroupBy(p => p.Type)
-                .Select(g => new
-                {
-                    Type = g.Key,
-                    TotalVerses = g.Sum(p => p.ToVerse - p.FromVerse + 1)
-                })
-                .ToListAsync();
+            // Extract totals by type
+            var memorizationLines = progressByType
+                .FirstOrDefault(p => p.Type == ProgressType.Memorization)?.TotalLines ?? 0;
+            var revisionLines = progressByType
+                .FirstOrDefault(p => p.Type == ProgressType.Revision)?.TotalLines ?? 0;
+            var consolidationLines = progressByType
+                .FirstOrDefault(p => p.Type == ProgressType.Consolidation)?.TotalLines ?? 0;
 
-            // Calculate achieved values
-            var memorizationVerses = progress.FirstOrDefault(p => p.Type == ProgressType.Memorization)?.TotalVerses ?? 0;
-            var revisionVerses = progress.FirstOrDefault(p => p.Type == ProgressType.Revision)?.TotalVerses ?? 0;
-            var consolidationVerses = progress.FirstOrDefault(p => p.Type == ProgressType.Consolidation)?.TotalVerses ?? 0;
-
-            // Convert verses to lines/pages (approximate: 1 page ≈ 15 verses, 1 line ≈ 1 verse)
-            var memorizationLines = memorizationVerses;
-            var revisionPages = (int)Math.Ceiling(revisionVerses / 15.0);
-            var consolidationPages = (int)Math.Ceiling(consolidationVerses / 15.0);
+            // Convert lines to pages for revision/consolidation (1 page = 15 lines in Medina Mushaf)
+            const double LinesPerPage = 15.0;
 
             return new TargetAchievementDto
             {
@@ -213,9 +216,9 @@ namespace KhairAPI.Services.Implementations
                 MemorizationLinesTarget = target.MemorizationLinesTarget,
                 RevisionPagesTarget = target.RevisionPagesTarget,
                 ConsolidationPagesTarget = target.ConsolidationPagesTarget,
-                MemorizationLinesAchieved = memorizationLines,
-                RevisionPagesAchieved = revisionPages,
-                ConsolidationPagesAchieved = consolidationPages
+                MemorizationLinesAchieved = (int)Math.Round(memorizationLines),
+                RevisionPagesAchieved = (int)Math.Ceiling(revisionLines / LinesPerPage),
+                ConsolidationPagesAchieved = (int)Math.Ceiling(consolidationLines / LinesPerPage)
             };
         }
 

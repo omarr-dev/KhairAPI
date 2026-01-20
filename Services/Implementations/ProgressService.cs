@@ -11,12 +11,18 @@ namespace KhairAPI.Services.Implementations
         private readonly AppDbContext _context;
         private readonly IQuranService _quranService;
         private readonly ITenantService _tenantService;
+        private readonly IQuranVerseLinesService _quranVerseLinesService;
 
-        public ProgressService(AppDbContext context, IQuranService quranService, ITenantService tenantService)
+        public ProgressService(
+            AppDbContext context, 
+            IQuranService quranService, 
+            ITenantService tenantService,
+            IQuranVerseLinesService quranVerseLinesService)
         {
             _context = context;
             _quranService = quranService;
             _tenantService = tenantService;
+            _quranVerseLinesService = quranVerseLinesService;
         }
 
         public async Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto)
@@ -51,6 +57,12 @@ namespace KhairAPI.Services.Implementations
                 throw new InvalidOperationException("السورة غير موجودة");
             }
 
+            // Calculate lines using the accurate Mushaf line data
+            var numberOfLines = _quranVerseLinesService.CalculateLines(
+                surah.Number, 
+                dto.FromVerse, 
+                dto.ToVerse);
+
             var progressRecord = new ProgressRecord
             {
                 StudentId = dto.StudentId,
@@ -63,6 +75,7 @@ namespace KhairAPI.Services.Implementations
                 ToVerse = dto.ToVerse,
                 Quality = dto.Quality,
                 Notes = dto.Notes,
+                NumberLines = numberOfLines,
                 CreatedAt = DateTime.UtcNow,
                 AssociationId = _tenantService.CurrentAssociationId.Value
             };
@@ -286,6 +299,7 @@ namespace KhairAPI.Services.Implementations
                     _ => ""
                 },
                 Notes = record.Notes,
+                NumberLines = record.NumberLines,
                 CreatedAt = record.CreatedAt
             };
         }

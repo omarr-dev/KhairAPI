@@ -172,6 +172,7 @@ namespace KhairAPI.Core.Extensions
             services.AddScoped<IProgressService, ProgressService>();
             services.AddScoped<IAttendanceService, AttendanceService>();
             services.AddSingleton<IQuranService, QuranService>();
+            services.AddSingleton<IQuranVerseLinesService, QuranVerseLinesService>();
             services.AddScoped<IAttendanceBackgroundService, AttendanceBackgroundService>();
             services.AddScoped<IExportService, ExportService>();
 

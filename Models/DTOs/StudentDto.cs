@@ -207,13 +207,13 @@ namespace KhairAPI.Models.DTOs
     /// </summary>
     public class SetStudentTargetDto
     {
-        [Range(0, 100, ErrorMessage = "عدد الأسطر يجب أن يكون بين 0 و 100")]
+        [Range(0, 500, ErrorMessage = "عدد الأسطر يجب أن يكون بين 0 و 500")]
         public int? MemorizationLinesTarget { get; set; }
 
-        [Range(0, 50, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 50")]
+        [Range(0, 500, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 500")]
         public int? RevisionPagesTarget { get; set; }
 
-        [Range(0, 50, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 50")]
+        [Range(0, 500, ErrorMessage = "عدد الأوجه يجب أن يكون بين 0 و 500")]
         public int? ConsolidationPagesTarget { get; set; }
     }
 

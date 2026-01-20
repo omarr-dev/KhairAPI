@@ -230,6 +230,9 @@ namespace KhairAPI.Data
                 entity.HasIndex(e => new { e.Date, e.StudentId });
                 entity.HasIndex(e => new { e.Date, e.HalaqaId });
                 entity.HasIndex(e => e.AssociationId);
+                
+                // Optimized index for achievement calculation (filter by student + date, group by type)
+                entity.HasIndex(e => new { e.StudentId, e.Date, e.Type });
 
                 // Configure relationships
                 entity.HasOne(e => e.Student)
