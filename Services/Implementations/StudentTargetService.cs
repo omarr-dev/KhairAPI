@@ -169,34 +169,30 @@ namespace KhairAPI.Services.Implementations
         /// <summary>
         /// Calculates achievement for a student on a specific date.
         /// Uses pre-stored NumberLines values for efficient aggregation.
+        /// Note: Queries run sequentially because DbContext is not thread-safe.
         /// </summary>
         public async Task<TargetAchievementDto?> CalculateAchievementAsync(int studentId, DateTime date)
         {
             var targetDate = date.Date;
             var nextDay = targetDate.AddDays(1);
 
-            // Parallel database calls for better performance
-            var targetTask = _context.StudentTargets
+            // Get target first (quick single-row lookup)
+            var target = await _context.StudentTargets
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.StudentId == studentId);
 
-            // Use SQL aggregation with stored NumberLines
-            var progressTask = _context.ProgressRecords
-                .AsNoTracking()
-                .Where(p => p.StudentId == studentId && p.Date >= targetDate && p.Date < nextDay)
-                .GroupBy(p => p.Type)
-                .Select(g => new { Type = g.Key, TotalLines = g.Sum(p => p.NumberLines) })
-                .ToListAsync();
-
-            await Task.WhenAll(targetTask, progressTask);
-
-            var target = targetTask.Result;
             if (target == null)
             {
                 return null; // No target set for this student
             }
 
-            var progressByType = progressTask.Result;
+            // Get progress records aggregated by type
+            var progressByType = await _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => p.StudentId == studentId && p.Date >= targetDate && p.Date < nextDay)
+                .GroupBy(p => p.Type)
+                .Select(g => new { Type = g.Key, TotalLines = g.Sum(p => p.NumberLines) })
+                .ToListAsync();
 
             // Extract totals by type
             var memorizationLines = progressByType
