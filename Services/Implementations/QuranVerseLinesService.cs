@@ -264,7 +264,7 @@ namespace KhairAPI.Services.Implementations
                 { "أنعام", 6 }, { "أعراف", 7 }, { "أنفال", 8 }, { "توبة", 9 },
                 
                 // Common alternative names
-                { "الاسراء", 17 }, { "الملك", 67 }, { "تبارك", 67 },
+                { "الاسراء", 17 }, { "تبارك", 67 },
             };
         }
 
