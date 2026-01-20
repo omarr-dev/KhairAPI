@@ -303,10 +303,16 @@ namespace KhairAPI.Controllers
             }
         }
 
-        [HttpGet("{id}/achievement")]
-        public async Task<IActionResult> GetAchievement(
+        /// <summary>
+        /// Gets achievement history for a student within a date range.
+        /// For single-day queries, use the same date for startDate and endDate.
+        /// Returns daily achievements, streak information, and summary statistics.
+        /// </summary>
+        [HttpGet("{id}/achievement-history")]
+        public async Task<IActionResult> GetAchievementHistory(
             int id, 
-            [FromQuery] DateTime? date,
+            [FromQuery] DateTime startDate,
+            [FromQuery] DateTime endDate,
             [FromServices] IStudentTargetService targetService)
         {
             // Check access
@@ -321,14 +327,49 @@ namespace KhairAPI.Controllers
                     return Forbid();
             }
 
-            // Default to today if no date specified
-            var targetDate = date ?? DateTime.UtcNow.Date;
-            var achievement = await targetService.CalculateAchievementAsync(id, targetDate);
-            
-            if (achievement == null)
-                return Ok(new { message = "لم يتم تحديد هدف لهذا الطالب" });
-                
-            return Ok(achievement);
+            try
+            {
+                var history = await targetService.GetAchievementHistoryAsync(id, startDate, endDate);
+                return Ok(history);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Gets achievement history for all of the teacher's students in a single batch call.
+        /// Optimized for the "My Students" page to show streaks and achievements efficiently.
+        /// </summary>
+        [HttpGet("my-students/achievements")]
+        public async Task<IActionResult> GetMyStudentsAchievements(
+            [FromQuery] DateTime startDate,
+            [FromQuery] DateTime endDate,
+            [FromServices] IStudentTargetService targetService)
+        {
+            var teacherId = await _currentUserService.GetTeacherIdAsync();
+            if (!teacherId.HasValue)
+                return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+            try
+            {
+                // Get all student IDs for this teacher
+                var students = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
+                var studentIds = students.Select(s => s.Id).ToList();
+
+                if (!studentIds.Any())
+                {
+                    return Ok(new Dictionary<int, AchievementHistoryDto>());
+                }
+
+                var achievements = await targetService.GetAchievementHistoryBatchAsync(studentIds, startDate, endDate);
+                return Ok(achievements);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         #endregion

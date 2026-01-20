@@ -273,5 +273,67 @@ namespace KhairAPI.Models.DTOs
             ? Math.Min(100, (double)RevisionPagesAchieved / RevisionPagesTarget.Value * 100) : null;
         public double? ConsolidationPercentage => ConsolidationPagesTarget > 0 
             ? Math.Min(100, (double)ConsolidationPagesAchieved / ConsolidationPagesTarget.Value * 100) : null;
+        
+        /// <summary>
+        /// Returns true if all set targets were met (100%+ on all)
+        /// </summary>
+        public bool IsTargetMet => 
+            (MemorizationLinesTarget == null || MemorizationLinesTarget == 0 || MemorizationLinesAchieved >= MemorizationLinesTarget) &&
+            (RevisionPagesTarget == null || RevisionPagesTarget == 0 || RevisionPagesAchieved >= RevisionPagesTarget) &&
+            (ConsolidationPagesTarget == null || ConsolidationPagesTarget == 0 || ConsolidationPagesAchieved >= ConsolidationPagesTarget);
+    }
+
+    /// <summary>
+    /// Achievement history for a date range with streak information.
+    /// Used for student profile page, reports, and analytics.
+    /// </summary>
+    public class AchievementHistoryDto
+    {
+        public int StudentId { get; set; }
+        
+        /// <summary>
+        /// Start date of the requested range
+        /// </summary>
+        public DateTime StartDate { get; set; }
+        
+        /// <summary>
+        /// End date of the requested range
+        /// </summary>
+        public DateTime EndDate { get; set; }
+        
+        /// <summary>
+        /// Daily achievements within the date range
+        /// </summary>
+        public List<TargetAchievementDto> DailyAchievements { get; set; } = new();
+        
+        /// <summary>
+        /// Current streak - consecutive days meeting all targets (ending today or most recent day)
+        /// </summary>
+        public int CurrentStreak { get; set; }
+        
+        /// <summary>
+        /// Best streak ever achieved within the queried range
+        /// </summary>
+        public int BestStreak { get; set; }
+        
+        /// <summary>
+        /// Last date when all targets were met
+        /// </summary>
+        public DateTime? LastAchievedDate { get; set; }
+        
+        /// <summary>
+        /// Total days where all targets were met
+        /// </summary>
+        public int TotalDaysTargetMet { get; set; }
+        
+        /// <summary>
+        /// Total days with any activity (at least one progress record)
+        /// </summary>
+        public int TotalDaysActive { get; set; }
+        
+        /// <summary>
+        /// Whether student has a target set
+        /// </summary>
+        public bool HasTarget { get; set; }
     }
 }
