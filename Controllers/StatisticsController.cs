@@ -44,7 +44,9 @@ namespace KhairAPI.Controllers
         [HttpGet("reports")]
         public async Task<IActionResult> GetReportStats(
             [FromQuery] string dateRange = "week",
-            [FromQuery] int? halaqaId = null)
+            [FromQuery] int? halaqaId = null,
+            [FromQuery] string? fromDate = null,
+            [FromQuery] string? toDate = null)
         {
             int? teacherId = null;
             List<int>? supervisedHalaqaIds = null;
@@ -65,7 +67,63 @@ namespace KhairAPI.Controllers
                 }
             }
 
-            var stats = await _statisticsService.GetReportStatsAsync(dateRange, halaqaId, teacherId, supervisedHalaqaIds);
+            // Validate custom date range if provided
+            DateTime? parsedFromDate = null;
+            DateTime? parsedToDate = null;
+
+            if (dateRange == "custom")
+            {
+                if (string.IsNullOrEmpty(fromDate) || string.IsNullOrEmpty(toDate))
+                {
+                    return BadRequest(new { message = "يجب تحديد تاريخ البداية والنهاية للفترة المحددة" });
+                }
+
+                // Use exact format parsing with invariant culture for consistent behavior
+                if (!DateTime.TryParseExact(fromDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, 
+                        System.Globalization.DateTimeStyles.None, out var from) || 
+                    !DateTime.TryParseExact(toDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, 
+                        System.Globalization.DateTimeStyles.None, out var to))
+                {
+                    return BadRequest(new { message = "صيغة التاريخ غير صحيحة. استخدم الصيغة: YYYY-MM-DD" });
+                }
+
+                // Security: Validate date range
+                var minAllowedDate = new DateTime(2020, 1, 1);
+                var maxAllowedDate = DateTime.UtcNow.Date;
+
+                if (from < minAllowedDate || to < minAllowedDate)
+                {
+                    return BadRequest(new { message = "التاريخ لا يمكن أن يكون قبل 2020-01-01" });
+                }
+
+                if (from > maxAllowedDate || to > maxAllowedDate)
+                {
+                    return BadRequest(new { message = "التاريخ لا يمكن أن يكون في المستقبل" });
+                }
+
+                if (from > to)
+                {
+                    return BadRequest(new { message = "تاريخ البداية يجب أن يكون قبل تاريخ النهاية" });
+                }
+
+                // Security: Limit date range to prevent performance issues
+                var maxRangeDays = 365;
+                if ((to - from).Days > maxRangeDays)
+                {
+                    return BadRequest(new { message = $"الفترة الزمنية لا يمكن أن تتجاوز {maxRangeDays} يوم" });
+                }
+
+                parsedFromDate = from;
+                parsedToDate = to;
+            }
+
+            var stats = await _statisticsService.GetReportStatsAsync(
+                dateRange, 
+                halaqaId, 
+                teacherId, 
+                supervisedHalaqaIds,
+                parsedFromDate,
+                parsedToDate);
             return Ok(stats);
         }
 

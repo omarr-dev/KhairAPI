@@ -83,18 +83,38 @@ namespace KhairAPI.Services.Implementations
             };
         }
 
-        public async Task<ReportStatsDto> GetReportStatsAsync(string dateRange, int? halaqaId = null, int? teacherId = null, List<int>? halaqaFilter = null)
+        public async Task<ReportStatsDto> GetReportStatsAsync(
+            string dateRange, 
+            int? halaqaId = null, 
+            int? teacherId = null, 
+            List<int>? halaqaFilter = null,
+            DateTime? customFromDate = null,
+            DateTime? customToDate = null)
         {
             var today = DateTime.UtcNow.Date;
-            var fromDate = dateRange switch
+            
+            // Determine date range based on option
+            DateTime fromDate;
+            DateTime toDate = today;
+            
+            if (dateRange == "custom" && customFromDate.HasValue && customToDate.HasValue)
             {
-                "week" => today.AddDays(-7),
-                "month" => today.AddMonths(-1),
-                _ => DateTime.MinValue
-            };
+                // Use custom date range (already validated in controller)
+                fromDate = customFromDate.Value.Date;
+                toDate = customToDate.Value.Date;
+            }
+            else
+            {
+                fromDate = dateRange switch
+                {
+                    "week" => today.AddDays(-7),
+                    "month" => today.AddMonths(-1),
+                    _ => today.AddDays(-7) // Default to week if invalid option
+                };
+            }
 
-            var progressQuery = _context.ProgressRecords.Where(p => p.Date >= fromDate && p.Date <= today);
-            var attendanceQuery = _context.Attendances.Where(a => a.Date >= fromDate && a.Date <= today);
+            var progressQuery = _context.ProgressRecords.Where(p => p.Date >= fromDate && p.Date <= toDate);
+            var attendanceQuery = _context.Attendances.Where(a => a.Date >= fromDate && a.Date <= toDate);
             var studentQuery = _context.Students.AsQueryable();
 
             if (halaqaId.HasValue && halaqaId.Value > 0)
@@ -126,7 +146,7 @@ namespace KhairAPI.Services.Implementations
             var progressData = new List<DailyChartDataDto>();
             var attendanceData = new List<DailyChartDataDto>();
 
-            for (var date = fromDate; date <= today; date = date.AddDays(1))
+            for (var date = fromDate; date <= toDate; date = date.AddDays(1))
             {
                 var dayProgress = progressRecords.Where(p => p.Date == date).ToList();
                 var dayAttendance = attendanceRecords.Where(a => a.Date == date).ToList();
