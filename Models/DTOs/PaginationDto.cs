@@ -25,6 +25,10 @@ namespace KhairAPI.Models.DTOs
         public int PageSize { get; set; } = 20;
         public string? Search { get; set; }
         public int? HalaqaId { get; set; }
+        /// <summary>
+        /// For filtering by multiple halaqas (used by HalaqaSupervisors)
+        /// </summary>
+        public List<int>? HalaqaIds { get; set; }
         public int? TeacherId { get; set; }
         public string? SortBy { get; set; } = "name"; // name, juz, createdAt
         public string? SortOrder { get; set; } = "asc"; // asc, desc
@@ -39,6 +43,10 @@ namespace KhairAPI.Models.DTOs
         public int PageSize { get; set; } = 20;
         public string? Search { get; set; }
         public int? HalaqaId { get; set; }
+        /// <summary>
+        /// For filtering by multiple halaqas (used by HalaqaSupervisors)
+        /// </summary>
+        public List<int>? HalaqaIds { get; set; }
         public string? SortBy { get; set; } = "name"; // name, studentsCount, halaqatCount
         public string? SortOrder { get; set; } = "asc"; // asc, desc
     }

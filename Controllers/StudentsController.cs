@@ -8,7 +8,7 @@ namespace KhairAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = "TeacherOrSupervisor")]
+    [Authorize(Policy = AppConstants.Policies.AnyRole)]
     public class StudentsController : ControllerBase
     {
         private readonly IStudentService _studentService;
@@ -34,6 +34,14 @@ namespace KhairAPI.Controllers
                     var teacherStudents = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
                     return Ok(teacherStudents);
                 }
+                
+                // HalaqaSupervisors only see students in their assigned halaqas
+                if (_currentUserService.IsHalaqaSupervisor)
+                {
+                    var supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+                    var students = await _studentService.GetStudentsByHalaqasAsync(supervisedHalaqaIds ?? new List<int>());
+                    return Ok(students);
+                }
 
                 var allStudents = await _studentService.GetAllStudentsAsync();
                 return Ok(allStudents);
@@ -52,15 +60,29 @@ namespace KhairAPI.Controllers
                     var teacherStudentIds = teacherStudents.Select(s => s.Id).ToHashSet();
                     searchResults = searchResults.Where(s => teacherStudentIds.Contains(s.Id));
                 }
+                else if (_currentUserService.IsHalaqaSupervisor)
+                {
+                    var supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+                    var halaqaStudents = await _studentService.GetStudentsByHalaqasAsync(supervisedHalaqaIds ?? new List<int>());
+                    var halaqaStudentIds = halaqaStudents.Select(s => s.Id).ToHashSet();
+                    searchResults = searchResults.Where(s => halaqaStudentIds.Contains(s.Id));
+                }
 
                 return Ok(searchResults);
             }
         }
 
         [HttpGet("paginated")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> GetStudentsPaginated([FromQuery] StudentFilterDto filter)
         {
+            // HalaqaSupervisors can only filter by their assigned halaqas
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+                filter.HalaqaIds = supervisedHalaqaIds;
+            }
+            
             var result = await _studentService.GetStudentsPaginatedAsync(filter);
             return Ok(result);
         }
@@ -68,6 +90,14 @@ namespace KhairAPI.Controllers
         [HttpGet("halaqa/{halaqaId}")]
         public async Task<IActionResult> GetStudentsByHalaqa(int halaqaId)
         {
+            // HalaqaSupervisors can only view students in their assigned halaqas
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(halaqaId);
+                if (!canAccess)
+                    return Forbid();
+            }
+            
             var students = await _studentService.GetStudentsByHalaqaAsync(halaqaId);
             return Ok(students);
         }
@@ -126,17 +156,26 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPost]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> CreateStudent([FromBody] CreateStudentDto dto)
         {
+            // HalaqaSupervisors can only create students in their assigned halaqas
+            if (_currentUserService.IsHalaqaSupervisor && dto.HalaqaId.HasValue)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(dto.HalaqaId.Value);
+                if (!canAccess)
+                    return Forbid();
+            }
+            
             var student = await _studentService.CreateStudentAsync(dto);
             return CreatedAtAction(nameof(GetStudentById), new { id = student.Id }, student);
         }
 
         [HttpPut("{id}")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> UpdateStudent(int id, [FromBody] UpdateStudentDto dto)
         {
+            // TODO: Add halaqa access check for HalaqaSupervisors if needed
             var student = await _studentService.UpdateStudentAsync(id, dto);
             if (student == null)
                 return NotFound(new { message = AppConstants.ErrorMessages.StudentNotFound });
@@ -145,7 +184,7 @@ namespace KhairAPI.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.SupervisorOnly)]
         public async Task<IActionResult> DeleteStudent(int id)
         {
             var result = await _studentService.DeleteStudentAsync(id);
@@ -156,9 +195,17 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPost("assign")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> AssignStudentToHalaqa([FromBody] AssignStudentDto dto)
         {
+            // HalaqaSupervisors can only assign to their halaqas
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(dto.HalaqaId);
+                if (!canAccess)
+                    return Forbid();
+            }
+            
             var result = await _studentService.AssignStudentToHalaqaAsync(dto);
             if (!result)
                 return BadRequest(new { message = AppConstants.ErrorMessages.CannotAssignStudent });
@@ -174,9 +221,17 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPut("assign/{studentId}/{halaqaId}/{teacherId}")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> UpdateAssignment(int studentId, int halaqaId, int teacherId, [FromBody] UpdateAssignmentDto dto)
         {
+            // HalaqaSupervisors can only update assignments in their halaqas
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(halaqaId);
+                if (!canAccess)
+                    return Forbid();
+            }
+            
             var result = await _studentService.UpdateAssignmentAsync(studentId, halaqaId, teacherId, dto);
             if (result == null)
                 return NotFound(new { message = AppConstants.ErrorMessages.AssignmentNotFound });
@@ -185,9 +240,17 @@ namespace KhairAPI.Controllers
         }
 
         [HttpDelete("assign/{studentId}/{halaqaId}/{teacherId}")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> DeleteAssignment(int studentId, int halaqaId, int teacherId)
         {
+            // HalaqaSupervisors can only delete assignments in their halaqas
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(halaqaId);
+                if (!canAccess)
+                    return Forbid();
+            }
+            
             var result = await _studentService.DeleteAssignmentAsync(studentId, halaqaId, teacherId);
             if (!result)
                 return NotFound(new { message = AppConstants.ErrorMessages.AssignmentNotFound });
@@ -264,9 +327,17 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPost("targets/bulk")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> BulkSetTargets([FromBody] BulkSetTargetDto dto, [FromServices] IStudentTargetService targetService)
         {
+            // HalaqaSupervisors can only bulk-set targets for their assigned halaqas
+            if (_currentUserService.IsHalaqaSupervisor && dto.HalaqaId.HasValue)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(dto.HalaqaId.Value);
+                if (!canAccess)
+                    return Forbid();
+            }
+            
             try
             {
                 var count = await targetService.BulkSetTargetAsync(dto);
@@ -315,6 +386,8 @@ namespace KhairAPI.Controllers
             [FromQuery] DateTime endDate,
             [FromServices] IStudentTargetService targetService)
         {
+            startDate = DateTime.SpecifyKind(startDate, DateTimeKind.Utc);
+            endDate = DateTime.SpecifyKind(endDate, DateTimeKind.Utc);
             // Check access
             if (_currentUserService.IsTeacher)
             {
@@ -357,6 +430,9 @@ namespace KhairAPI.Controllers
                 // Get all student IDs for this teacher
                 var students = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
                 var studentIds = students.Select(s => s.Id).ToList();
+
+                startDate = DateTime.SpecifyKind(startDate, DateTimeKind.Utc);
+                endDate = DateTime.SpecifyKind(endDate, DateTimeKind.Utc);
 
                 if (!studentIds.Any())
                 {

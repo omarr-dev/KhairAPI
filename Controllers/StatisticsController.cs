@@ -7,7 +7,7 @@ namespace KhairAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = "TeacherOrSupervisor")]
+    [Authorize(Policy = AppConstants.Policies.AnyRole)]
     public class StatisticsController : ControllerBase
     {
         private readonly IStatisticsService _statisticsService;
@@ -22,7 +22,8 @@ namespace KhairAPI.Controllers
         [HttpGet("dashboard")]
         public async Task<IActionResult> GetDashboardStats()
         {
-                int? teacherId = null;
+            int? teacherId = null;
+            List<int>? supervisedHalaqaIds = null;
 
             if (_currentUserService.IsTeacher)
             {
@@ -30,8 +31,13 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
             }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
+            // Full Supervisors see all (no filtering)
 
-            var stats = await _statisticsService.GetDashboardStatsAsync(teacherId);
+            var stats = await _statisticsService.GetDashboardStatsAsync(teacherId, supervisedHalaqaIds);
             return Ok(stats);
         }
 
@@ -40,7 +46,8 @@ namespace KhairAPI.Controllers
             [FromQuery] string dateRange = "week",
             [FromQuery] int? halaqaId = null)
         {
-                int? teacherId = null;
+            int? teacherId = null;
+            List<int>? supervisedHalaqaIds = null;
 
             if (_currentUserService.IsTeacher)
             {
@@ -48,8 +55,17 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
             }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+                // If specific halaqa requested, verify access
+                if (halaqaId.HasValue && supervisedHalaqaIds != null && !supervisedHalaqaIds.Contains(halaqaId.Value))
+                {
+                    return Forbid();
+                }
+            }
 
-            var stats = await _statisticsService.GetReportStatsAsync(dateRange, halaqaId, teacherId);
+            var stats = await _statisticsService.GetReportStatsAsync(dateRange, halaqaId, teacherId, supervisedHalaqaIds);
             return Ok(stats);
         }
 
@@ -57,46 +73,70 @@ namespace KhairAPI.Controllers
         public async Task<IActionResult> GetSystemWideStats()
         {
             var stats = await _statisticsService.GetSystemWideStatsAsync();
-                return Ok(stats);
+            return Ok(stats);
         }
 
         [HttpGet("supervisor-dashboard")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> GetSupervisorDashboard()
         {
-            var dashboard = await _statisticsService.GetSupervisorDashboardAsync();
-                return Ok(dashboard);
+            List<int>? supervisedHalaqaIds = null;
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
+
+            var dashboard = await _statisticsService.GetSupervisorDashboardAsync(supervisedHalaqaIds);
+            return Ok(dashboard);
         }
 
         [HttpGet("halaqa-ranking")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> GetHalaqaRanking([FromQuery] int days = 7, [FromQuery] int limit = 10)
         {
-            var rankings = await _statisticsService.GetHalaqaRankingAsync(days, limit);
-                return Ok(rankings);
+            List<int>? supervisedHalaqaIds = null;
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
+
+            var rankings = await _statisticsService.GetHalaqaRankingAsync(days, limit, supervisedHalaqaIds);
+            return Ok(rankings);
         }
 
         [HttpGet("top-halaqat")]
         public async Task<IActionResult> GetTopHalaqat()
         {
             var rankings = await _statisticsService.GetTopHalaqatAsync();
-                return Ok(rankings);
+            return Ok(rankings);
         }
 
         [HttpGet("teacher-ranking")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> GetTeacherRanking([FromQuery] int days = 7, [FromQuery] int limit = 10)
         {
-            var rankings = await _statisticsService.GetTeacherRankingAsync(days, limit);
-                return Ok(rankings);
+            List<int>? supervisedHalaqaIds = null;
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
+
+            var rankings = await _statisticsService.GetTeacherRankingAsync(days, limit, supervisedHalaqaIds);
+            return Ok(rankings);
         }
 
         [HttpGet("at-risk-students")]
-        [Authorize(Policy = "SupervisorOnly")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> GetAtRiskStudents([FromQuery] int limit = 20)
         {
-            var atRiskStudents = await _statisticsService.GetAtRiskStudentsAsync(limit);
-                return Ok(atRiskStudents);
+            List<int>? supervisedHalaqaIds = null;
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
+
+            var atRiskStudents = await _statisticsService.GetAtRiskStudentsAsync(limit, supervisedHalaqaIds);
+            return Ok(atRiskStudents);
         }
 
         [HttpGet("my-at-risk-students")]
@@ -105,15 +145,22 @@ namespace KhairAPI.Controllers
             if (_currentUserService.IsSupervisor)
             {
                 var allAtRiskStudents = await _statisticsService.GetAtRiskStudentsAsync(limit);
-                    return Ok(allAtRiskStudents);
-                }
+                return Ok(allAtRiskStudents);
+            }
+            
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+                var atRiskStudents = await _statisticsService.GetAtRiskStudentsAsync(limit, supervisedHalaqaIds);
+                return Ok(atRiskStudents);
+            }
                 
             var teacherId = await _currentUserService.GetTeacherIdAsync();
-                if (!teacherId.HasValue)
+            if (!teacherId.HasValue)
                 return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-            var atRiskStudents = await _statisticsService.GetTeacherAtRiskStudentsAsync(teacherId.Value, limit);
-                return Ok(atRiskStudents);
+            var teacherAtRiskStudents = await _statisticsService.GetTeacherAtRiskStudentsAsync(teacherId.Value, limit);
+            return Ok(teacherAtRiskStudents);
         }
     }
 }

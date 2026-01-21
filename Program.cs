@@ -16,6 +16,9 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
+        // Fix for Npgsql 6.0+ DateTime issue: "Cannot write DateTime with Kind=Unspecified to PostgreSQL type 'timestamp with time zone', only UTC is supported"
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
         var builder = WebApplication.CreateBuilder(args);
 
         // Add controllers
@@ -64,6 +67,10 @@ builder.Services.AddCors(options =>
         {
             options.AddPolicy("SupervisorOnly", policy => policy.RequireRole("Supervisor"));
             options.AddPolicy("TeacherOrSupervisor", policy => policy.RequireRole("Teacher", "Supervisor"));
+            // HalaqaSupervisor can do most supervisor tasks within their assigned halaqas
+            options.AddPolicy("HalaqaSupervisorOrHigher", policy => policy.RequireRole("Supervisor", "HalaqaSupervisor"));
+            // Any authenticated user with a valid role
+            options.AddPolicy("AnyRole", policy => policy.RequireRole("Supervisor", "HalaqaSupervisor", "Teacher"));
         });
 
         // Configure Swagger/OpenAPI with JWT support

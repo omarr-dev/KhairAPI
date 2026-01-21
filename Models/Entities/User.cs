@@ -28,11 +28,21 @@ namespace KhairAPI.Models.Entities
 
         // Navigation property
         public Teacher? Teacher { get; set; }
+        
+        /// <summary>
+        /// Halaqa assignments for HalaqaSupervisor role users
+        /// </summary>
+        public ICollection<HalaqaSupervisorAssignment> HalaqaAssignments { get; set; } = new List<HalaqaSupervisorAssignment>();
     }
 
     public enum UserRole
     {
         Teacher,
-        Supervisor
+        Supervisor,
+        /// <summary>
+        /// Limited supervisor role with access scoped to specific halaqas
+        /// </summary>
+        HalaqaSupervisor
     }
 }
+

@@ -135,7 +135,7 @@ namespace KhairAPI.Services.Implementations
             return MapToDto(savedRecord!);
         }
 
-        public async Task<IEnumerable<ProgressRecordDto>> GetProgressByDateAsync(DateTime date, int? teacherId = null)
+        public async Task<IEnumerable<ProgressRecordDto>> GetProgressByDateAsync(DateTime date, int? teacherId = null, List<int>? halaqaFilter = null)
         {
             var query = _context.ProgressRecords
                 .Include(pr => pr.Student)
@@ -147,6 +147,12 @@ namespace KhairAPI.Services.Implementations
             if (teacherId.HasValue)
             {
                 query = query.Where(pr => pr.TeacherId == teacherId.Value);
+            }
+            
+            // Apply halaqa filter for HalaqaSupervisors
+            if (halaqaFilter != null && halaqaFilter.Any())
+            {
+                query = query.Where(pr => halaqaFilter.Contains(pr.HalaqaId));
             }
 
             var records = await query.OrderBy(pr => pr.CreatedAt).ToListAsync();
@@ -171,9 +177,9 @@ namespace KhairAPI.Services.Implementations
             return records.Select(MapToDto);
         }
 
-        public async Task<DailyProgressSummaryDto> GetDailyProgressSummaryAsync(DateTime date, int? teacherId = null)
+        public async Task<DailyProgressSummaryDto> GetDailyProgressSummaryAsync(DateTime date, int? teacherId = null, List<int>? halaqaFilter = null)
         {
-            var records = await GetProgressByDateAsync(date, teacherId);
+            var records = await GetProgressByDateAsync(date, teacherId, halaqaFilter);
             var recordsList = records.ToList();
 
             return new DailyProgressSummaryDto

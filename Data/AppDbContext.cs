@@ -26,6 +26,7 @@ namespace KhairAPI.Data
         public DbSet<Attendance> Attendances { get; set; }
         public DbSet<TeacherAttendance> TeacherAttendances { get; set; }
         public DbSet<StudentTarget> StudentTargets { get; set; } = null!;
+        public DbSet<HalaqaSupervisorAssignment> HalaqaSupervisorAssignments { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -373,6 +374,40 @@ namespace KhairAPI.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            // Configure HalaqaSupervisorAssignment entity
+            modelBuilder.Entity<HalaqaSupervisorAssignment>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                
+                // Composite unique index to prevent duplicate assignments
+                entity.HasIndex(e => new { e.UserId, e.HalaqaId }).IsUnique();
+                
+                // Indexes for efficient lookups
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.HalaqaId);
+                entity.HasIndex(e => e.AssociationId);
+
+                // Configure relationships
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.HalaqaAssignments)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Halaqa)
+                    .WithMany(h => h.SupervisorAssignments)
+                    .HasForeignKey(e => e.HalaqaId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // Multi-tenancy: Global query filter
+                entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue
+                    || e.AssociationId == _tenantService.CurrentAssociationId);
+
+                // Foreign key to Association
+                entity.HasOne(e => e.Association)
+                    .WithMany()
+                    .HasForeignKey(e => e.AssociationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
 
         }
 

@@ -5,6 +5,10 @@ namespace KhairAPI.Services.Interfaces
     public interface ITeacherService
     {
         Task<IEnumerable<TeacherDto>> GetAllTeachersAsync();
+        /// <summary>
+        /// Get teachers assigned to any of the specified halaqas (for HalaqaSupervisors)
+        /// </summary>
+        Task<IEnumerable<TeacherDto>> GetTeachersByHalaqasAsync(List<int> halaqaIds);
         Task<PaginatedResponse<TeacherDto>> GetTeachersPaginatedAsync(TeacherFilterDto filter);
         Task<TeacherDto?> GetTeacherByIdAsync(int id);
         Task<IEnumerable<TeacherDto>> GetTeachersByHalaqaAsync(int halaqaId);
@@ -16,4 +20,3 @@ namespace KhairAPI.Services.Interfaces
         Task<bool> RemoveTeacherFromHalaqaAsync(int teacherId, int halaqaId);
     }
 }
-

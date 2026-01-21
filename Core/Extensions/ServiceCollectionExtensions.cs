@@ -64,6 +64,12 @@ namespace KhairAPI.Core.Extensions
                     policy => policy.RequireRole(AppConstants.Roles.Supervisor));
                 options.AddPolicy(AppConstants.Policies.TeacherOrSupervisor,
                     policy => policy.RequireRole(AppConstants.Roles.Teacher, AppConstants.Roles.Supervisor));
+                // HalaqaSupervisor can do most supervisor tasks within their assigned halaqas
+                options.AddPolicy(AppConstants.Policies.HalaqaSupervisorOrHigher,
+                    policy => policy.RequireRole(AppConstants.Roles.Supervisor, AppConstants.Roles.HalaqaSupervisor));
+                // Any authenticated user with a valid role
+                options.AddPolicy(AppConstants.Policies.AnyRole,
+                    policy => policy.RequireRole(AppConstants.Roles.Supervisor, AppConstants.Roles.HalaqaSupervisor, AppConstants.Roles.Teacher));
             });
 
             return services;
@@ -182,6 +188,7 @@ namespace KhairAPI.Core.Extensions
             services.AddScoped<IStatisticsService, StatisticsService>();
             services.AddScoped<ITeacherAttendanceService, TeacherAttendanceService>();
             services.AddScoped<IStudentTargetService, StudentTargetService>();
+            services.AddScoped<IHalaqaSupervisorService, HalaqaSupervisorService>();
 
             // AutoMapper
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());

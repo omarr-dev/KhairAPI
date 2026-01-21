@@ -9,13 +9,36 @@ namespace KhairAPI.Core.Helpers
         {
             public const string Supervisor = "Supervisor";
             public const string Teacher = "Teacher";
+            public const string HalaqaSupervisor = "HalaqaSupervisor";
             public const string SupervisorOrTeacher = "Supervisor,Teacher";
+            /// <summary>
+            /// Both full Supervisors and HalaqaSupervisors (limited scope)
+            /// </summary>
+            public const string AllSupervisors = "Supervisor,HalaqaSupervisor";
+            /// <summary>
+            /// All roles that can access the system
+            /// </summary>
+            public const string AllRoles = "Supervisor,HalaqaSupervisor,Teacher";
         }
 
         public static class Policies
         {
+            /// <summary>
+            /// Full supervisor access only (association-wide)
+            /// </summary>
             public const string SupervisorOnly = "SupervisorOnly";
+            /// <summary>
+            /// Teachers and full supervisors
+            /// </summary>
             public const string TeacherOrSupervisor = "TeacherOrSupervisor";
+            /// <summary>
+            /// HalaqaSupervisors and full Supervisors (for halaqa management)
+            /// </summary>
+            public const string HalaqaSupervisorOrHigher = "HalaqaSupervisorOrHigher";
+            /// <summary>
+            /// Any authenticated role
+            /// </summary>
+            public const string AnyRole = "AnyRole";
         }
 
         public static class ErrorMessages

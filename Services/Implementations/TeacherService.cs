@@ -30,6 +30,22 @@ namespace KhairAPI.Services.Implementations
             return teachers.Select(MapToDto);
         }
 
+        public async Task<IEnumerable<TeacherDto>> GetTeachersByHalaqasAsync(List<int> halaqaIds)
+        {
+            if (!halaqaIds.Any())
+                return Enumerable.Empty<TeacherDto>();
+
+            var teachers = await _context.Teachers
+                .Include(t => t.User)
+                .Include(t => t.HalaqaTeachers)
+                .Include(t => t.StudentHalaqat)
+                .AsSplitQuery()
+                .Where(t => t.HalaqaTeachers.Any(ht => halaqaIds.Contains(ht.HalaqaId)))
+                .ToListAsync();
+
+            return teachers.Select(MapToDto);
+        }
+
         public async Task<PaginatedResponse<TeacherDto>> GetTeachersPaginatedAsync(TeacherFilterDto filter)
         {
             var query = _context.Teachers
@@ -50,10 +66,15 @@ namespace KhairAPI.Services.Implementations
                 );
             }
 
-            // Apply halaqa filter
+            // Apply halaqa filter (single)
             if (filter.HalaqaId.HasValue && filter.HalaqaId.Value > 0)
             {
                 query = query.Where(t => t.HalaqaTeachers.Any(ht => ht.HalaqaId == filter.HalaqaId.Value));
+            }
+            // Apply halaqa filter (multiple, for HalaqaSupervisors)
+            else if (filter.HalaqaIds != null && filter.HalaqaIds.Any())
+            {
+                query = query.Where(t => t.HalaqaTeachers.Any(ht => filter.HalaqaIds.Contains(ht.HalaqaId)));
             }
 
             // Get total count before pagination

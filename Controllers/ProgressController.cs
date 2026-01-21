@@ -8,7 +8,7 @@ namespace KhairAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = "TeacherOrSupervisor")]
+    [Authorize(Policy = AppConstants.Policies.AnyRole)]
     public class ProgressController : ControllerBase
     {
         private readonly IProgressService _progressService;
@@ -29,6 +29,14 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue || teacherId.Value != dto.TeacherId)
                     return Forbid();
             }
+            
+            // HalaqaSupervisors can only create progress in their assigned halaqas
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(dto.HalaqaId);
+                if (!canAccess)
+                    return Forbid();
+            }
 
             var record = await _progressService.CreateProgressRecordAsync(dto);
             return CreatedAtAction(nameof(GetDailyProgress), new { date = record.Date }, record);
@@ -37,7 +45,9 @@ namespace KhairAPI.Controllers
         [HttpGet("daily/{date}")]
         public async Task<IActionResult> GetDailyProgress(DateTime date)
         {
+            date = DateTime.SpecifyKind(date, DateTimeKind.Utc);
             int? teacherId = null;
+            List<int>? halaqaFilter = null;
 
             if (_currentUserService.IsTeacher)
             {
@@ -45,15 +55,20 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
             }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                halaqaFilter = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
 
-            var summary = await _progressService.GetDailyProgressSummaryAsync(date, teacherId);
+            var summary = await _progressService.GetDailyProgressSummaryAsync(date, teacherId, halaqaFilter);
             return Ok(summary);
         }
 
         [HttpGet("student/{studentId}")]
         public async Task<IActionResult> GetStudentProgress(int studentId, [FromQuery] DateTime? fromDate = null)
         {
-            var progress = await _progressService.GetProgressByStudentAsync(studentId, fromDate);
+            var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : (DateTime?)null;
+            var progress = await _progressService.GetProgressByStudentAsync(studentId, from);
             return Ok(progress);
         }
 
@@ -106,7 +121,7 @@ namespace KhairAPI.Controllers
         [HttpGet("today")]
         public async Task<IActionResult> GetTodayProgress()
         {
-            return await GetDailyProgress(DateTime.Today);
+            return await GetDailyProgress(DateTime.UtcNow.Date);
         }
     }
 }

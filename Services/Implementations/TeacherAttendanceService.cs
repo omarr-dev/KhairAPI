@@ -18,14 +18,22 @@ namespace KhairAPI.Services.Implementations
             _tenantService = tenantService;
         }
 
-        public async Task<TodayTeacherAttendanceResponseDto> GetTodayAttendanceAsync()
+        public async Task<TodayTeacherAttendanceResponseDto> GetTodayAttendanceAsync(List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var dayOfWeek = (int)today.DayOfWeek;
             var arabicDayName = AppConstants.ArabicDayNames.GetDayName(today.DayOfWeek);
 
-            var halaqat = await _context.Halaqat
-                .Where(h => h.IsActive)
+            var halaqatQuery = _context.Halaqat
+                .Where(h => h.IsActive);
+
+            // Apply halaqa filter for HalaqaSupervisors
+            if (halaqaFilter != null)
+            {
+                halaqatQuery = halaqatQuery.Where(h => halaqaFilter.Contains(h.Id));
+            }
+
+            var halaqat = await halaqatQuery
                 .Include(h => h.HalaqaTeachers)
                     .ThenInclude(ht => ht.Teacher)
                 .AsSplitQuery()
@@ -217,7 +225,7 @@ namespace KhairAPI.Services.Implementations
         }
 
         public async Task<IEnumerable<TeacherAttendanceRecordDto>> GetTeacherAttendanceHistoryAsync(
-            int teacherId, DateTime? fromDate = null, DateTime? toDate = null)
+            int teacherId, DateTime? fromDate = null, DateTime? toDate = null, List<int>? halaqaFilter = null)
         {
             var teacher = await _context.Teachers.FindAsync(teacherId);
             if (teacher == null)
@@ -227,6 +235,12 @@ namespace KhairAPI.Services.Implementations
                 .Where(ta => ta.TeacherId == teacherId)
                 .Include(ta => ta.Halaqa)
                 .AsQueryable();
+
+            // Apply halaqa filter for HalaqaSupervisors
+            if (halaqaFilter != null)
+            {
+                query = query.Where(ta => halaqaFilter.Contains(ta.HalaqaId));
+            }
 
             if (fromDate.HasValue)
             {
@@ -255,7 +269,7 @@ namespace KhairAPI.Services.Implementations
                 .ToListAsync();
         }
 
-        public async Task<MonthlyAttendanceReportDto> GetMonthlyReportAsync(int year, int month)
+        public async Task<MonthlyAttendanceReportDto> GetMonthlyReportAsync(int year, int month, List<int>? halaqaFilter = null)
         {
             if (month < 1 || month > 12)
             {
@@ -271,11 +285,19 @@ namespace KhairAPI.Services.Implementations
             var endDate = new DateTime(year, month, DateTime.DaysInMonth(year, month), 23, 59, 59, DateTimeKind.Utc);
             var monthName = AppConstants.ArabicMonthNames.GetMonthName(month);
 
-            var teachers = await _context.Teachers
+            var teachersQuery = _context.Teachers
                 .Include(t => t.HalaqaTeachers)
                     .ThenInclude(ht => ht.Halaqa)
                 .AsSplitQuery()
-                .Where(t => t.HalaqaTeachers.Any())
+                .Where(t => t.HalaqaTeachers.Any());
+
+            // Filter teachers by halaqas for HalaqaSupervisors
+            if (halaqaFilter != null)
+            {
+                teachersQuery = teachersQuery.Where(t => t.HalaqaTeachers.Any(ht => halaqaFilter.Contains(ht.HalaqaId)));
+            }
+
+            var teachers = await teachersQuery
                 .OrderBy(t => t.FullName)
                 .ToListAsync();
 

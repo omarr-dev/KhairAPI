@@ -39,6 +39,7 @@ namespace KhairAPI.Controllers
         [HttpGet("halaqa/{halaqaId}/date/{date}")]
         public async Task<IActionResult> GetAttendanceByDate(int halaqaId, DateTime date)
         {
+            date = DateTime.SpecifyKind(date, DateTimeKind.Utc);
             var summary = await _attendanceService.GetAttendanceByDateAsync(halaqaId, date);
             return Ok(summary);
         }
@@ -49,7 +50,9 @@ namespace KhairAPI.Controllers
             [FromQuery] DateTime? fromDate = null, 
             [FromQuery] DateTime? toDate = null)
         {
-            var records = await _attendanceService.GetStudentAttendanceAsync(studentId, fromDate, toDate);
+            var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : (DateTime?)null;
+            var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : (DateTime?)null;
+            var records = await _attendanceService.GetStudentAttendanceAsync(studentId, from, to);
             return Ok(records);
         }
 
@@ -59,6 +62,8 @@ namespace KhairAPI.Controllers
             [FromQuery] DateTime fromDate, 
             [FromQuery] DateTime toDate)
         {
+            fromDate = DateTime.SpecifyKind(fromDate, DateTimeKind.Utc);
+            toDate = DateTime.SpecifyKind(toDate, DateTimeKind.Utc);
             var summary = await _attendanceService.GetStudentAttendanceSummaryAsync(studentId, fromDate, toDate);
             return Ok(summary);
         }

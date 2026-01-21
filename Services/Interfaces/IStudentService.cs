@@ -7,6 +7,10 @@ namespace KhairAPI.Services.Interfaces
         Task<IEnumerable<StudentDto>> GetAllStudentsAsync();
         Task<PaginatedResponse<StudentDto>> GetStudentsPaginatedAsync(StudentFilterDto filter);
         Task<IEnumerable<StudentDto>> GetStudentsByHalaqaAsync(int halaqaId);
+        /// <summary>
+        /// Get students assigned to any of the specified halaqas (for HalaqaSupervisors)
+        /// </summary>
+        Task<IEnumerable<StudentDto>> GetStudentsByHalaqasAsync(List<int> halaqaIds);
         Task<IEnumerable<StudentDto>> GetStudentsByTeacherAsync(int teacherId);
         Task<StudentDto?> GetStudentByIdAsync(int id);
         Task<StudentDetailDto?> GetStudentDetailsAsync(int id);

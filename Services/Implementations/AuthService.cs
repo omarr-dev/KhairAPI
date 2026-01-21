@@ -31,6 +31,7 @@ namespace KhairAPI.Services.Implementations
 
             var user = await _context.Users
                 .Include(u => u.Teacher)
+                .Include(u => u.HalaqaAssignments.Where(a => a.IsActive))
                 .AsSplitQuery()
                 .OrderBy(u => u.Id)
                 .FirstOrDefaultAsync(u => u.PhoneNumber == formattedPhone && u.IsActive);
@@ -89,6 +90,7 @@ namespace KhairAPI.Services.Implementations
 
             user = await _context.Users
                 .Include(u => u.Teacher)
+                .Include(u => u.HalaqaAssignments.Where(a => a.IsActive))
                 .AsSplitQuery()
                 .OrderBy(u => u.Id)
                 .FirstOrDefaultAsync(u => u.Id == user.Id);
@@ -125,7 +127,11 @@ namespace KhairAPI.Services.Implementations
                     PhoneNumber = user.PhoneNumber,
                     FullName = user.FullName,
                     Role = user.Role.ToString(),
-                    TeacherId = user.Teacher?.Id
+                    TeacherId = user.Teacher?.Id,
+                    // Include supervised halaqa IDs for HalaqaSupervisors
+                    SupervisedHalaqaIds = user.Role == UserRole.HalaqaSupervisor
+                        ? user.HalaqaAssignments?.Select(a => a.HalaqaId).ToList()
+                        : null
                 }
             };
         }

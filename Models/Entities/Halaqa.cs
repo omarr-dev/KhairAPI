@@ -35,5 +35,11 @@ namespace KhairAPI.Models.Entities
         public ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
         public ICollection<ProgressRecord> ProgressRecords { get; set; } = new List<ProgressRecord>();
         public ICollection<TeacherAttendance> TeacherAttendances { get; set; } = new List<TeacherAttendance>();
+        
+        /// <summary>
+        /// HalaqaSupervisors assigned to manage this halaqa
+        /// </summary>
+        public ICollection<HalaqaSupervisorAssignment> SupervisorAssignments { get; set; } = new List<HalaqaSupervisorAssignment>();
     }
 }
+

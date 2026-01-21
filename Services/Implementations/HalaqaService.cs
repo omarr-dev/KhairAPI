@@ -20,16 +20,23 @@ namespace KhairAPI.Services.Implementations
             _tenantService = tenantService;
         }
 
-        public async Task<IEnumerable<HalaqaDto>> GetAllHalaqatAsync(int? teacherId = null)
+        public async Task<IEnumerable<HalaqaDto>> GetAllHalaqatAsync(int? teacherId = null, List<int>? supervisedHalaqaIds = null)
         {
             IQueryable<Halaqa> query = _context.Halaqat
                 .Include(h => h.StudentHalaqat)
                 .Include(h => h.HalaqaTeachers)
                 .AsSplitQuery();
 
+            // Filter by teacher if specified
             if (teacherId.HasValue)
             {
                 query = query.Where(h => h.HalaqaTeachers.Any(ht => ht.TeacherId == teacherId.Value));
+            }
+            
+            // Filter by supervised halaqas if specified (for HalaqaSupervisors)
+            if (supervisedHalaqaIds != null)
+            {
+                query = query.Where(h => supervisedHalaqaIds.Contains(h.Id));
             }
 
             var halaqat = await query.ToListAsync();
@@ -37,15 +44,23 @@ namespace KhairAPI.Services.Implementations
             return halaqat.Select(MapToDto);
         }
 
-        public async Task<IEnumerable<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync()
+        public async Task<IEnumerable<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync(List<int>? supervisedHalaqaIds = null)
         {
-            var halaqat = await _context.Halaqat
+            var query = _context.Halaqat
                 .Include(h => h.HalaqaTeachers)
                     .ThenInclude(ht => ht.Teacher)
                 .Include(h => h.StudentHalaqat)
                     .ThenInclude(sh => sh.Student)
                 .AsSplitQuery()
-                .Where(h => h.IsActive)
+                .Where(h => h.IsActive);
+
+            // Filter by supervised halaqas if specified (for HalaqaSupervisors)
+            if (supervisedHalaqaIds != null)
+            {
+                query = query.Where(h => supervisedHalaqaIds.Contains(h.Id));
+            }
+
+            var halaqat = await query
                 .OrderBy(h => h.Name)
                 .ToListAsync();
 

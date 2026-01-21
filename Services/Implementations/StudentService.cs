@@ -53,9 +53,15 @@ namespace KhairAPI.Services.Implementations
                 );
             }
 
+            // Apply halaqa filter (single)
             if (filter.HalaqaId.HasValue && filter.HalaqaId.Value > 0)
             {
                 query = query.Where(s => s.StudentHalaqat.Any(sh => sh.HalaqaId == filter.HalaqaId.Value && sh.IsActive));
+            }
+            // Apply halaqa filter (multiple, for HalaqaSupervisors)
+            else if (filter.HalaqaIds != null && filter.HalaqaIds.Any())
+            {
+                query = query.Where(s => s.StudentHalaqat.Any(sh => filter.HalaqaIds.Contains(sh.HalaqaId) && sh.IsActive));
             }
 
             if (filter.TeacherId.HasValue && filter.TeacherId.Value > 0)
@@ -101,6 +107,23 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Teacher)
                 .AsSplitQuery()
                 .Where(s => s.StudentHalaqat.Any(sh => sh.HalaqaId == halaqaId && sh.IsActive))
+                .ToListAsync();
+
+            return students.Select(MapToDto);
+        }
+
+        public async Task<IEnumerable<StudentDto>> GetStudentsByHalaqasAsync(List<int> halaqaIds)
+        {
+            if (!halaqaIds.Any())
+                return Enumerable.Empty<StudentDto>();
+
+            var students = await _context.Students
+                .Include(s => s.StudentHalaqat)
+                    .ThenInclude(sh => sh.Halaqa)
+                .Include(s => s.StudentHalaqat)
+                    .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
+                .Where(s => s.StudentHalaqat.Any(sh => halaqaIds.Contains(sh.HalaqaId) && sh.IsActive))
                 .ToListAsync();
 
             return students.Select(MapToDto);

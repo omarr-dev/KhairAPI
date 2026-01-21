@@ -16,7 +16,7 @@ namespace KhairAPI.Services.Implementations
             _context = context;
         }
 
-        public async Task<DashboardStatsDto> GetDashboardStatsAsync(int? teacherId = null)
+        public async Task<DashboardStatsDto> GetDashboardStatsAsync(int? teacherId = null, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
 
@@ -83,7 +83,7 @@ namespace KhairAPI.Services.Implementations
             };
         }
 
-        public async Task<ReportStatsDto> GetReportStatsAsync(string dateRange, int? halaqaId = null, int? teacherId = null)
+        public async Task<ReportStatsDto> GetReportStatsAsync(string dateRange, int? halaqaId = null, int? teacherId = null, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var fromDate = dateRange switch
@@ -269,7 +269,7 @@ namespace KhairAPI.Services.Implementations
             };
         }
 
-        public async Task<SupervisorDashboardDto> GetSupervisorDashboardAsync()
+        public async Task<SupervisorDashboardDto> GetSupervisorDashboardAsync(List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var weekAgo = today.AddDays(-7);
@@ -308,7 +308,7 @@ namespace KhairAPI.Services.Implementations
             };
         }
 
-        public async Task<List<HalaqaRankingDto>> GetHalaqaRankingAsync(int days = 7, int limit = 10)
+        public async Task<List<HalaqaRankingDto>> GetHalaqaRankingAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-days);
@@ -370,7 +370,7 @@ namespace KhairAPI.Services.Implementations
             return await GetHalaqaRankingAsync(7, 5);
         }
 
-        public async Task<List<TeacherRankingDto>> GetTeacherRankingAsync(int days = 7, int limit = 10)
+        public async Task<List<TeacherRankingDto>> GetTeacherRankingAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-days);
@@ -443,7 +443,7 @@ namespace KhairAPI.Services.Implementations
             return rankings.OrderByDescending(r => r.Score).Take(limit).ToList();
         }
 
-        public async Task<List<AtRiskStudentDto>> GetAtRiskStudentsAsync(int limit = 20)
+        public async Task<List<AtRiskStudentDto>> GetAtRiskStudentsAsync(int limit = 20, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-30);
