@@ -392,11 +392,14 @@ namespace KhairAPI.Services.Implementations
             return stream.ToArray();
         }
 
-        public async Task<byte[]> ExportTeacherAttendanceReportAsync(int year, int month, IEnumerable<int>? halaqaIds = null)
+        public async Task<byte[]> ExportTeacherAttendanceReportAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null)
         {
-            var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-            var endDate = new DateTime(year, month, DateTime.DaysInMonth(year, month), 23, 59, 59, DateTimeKind.Utc);
-            var monthName = AppConstants.ArabicMonthNames.GetMonthName(month);
+            var startDate = DateTime.SpecifyKind(fromDate, DateTimeKind.Utc);
+            var endDate = DateTime.SpecifyKind(toDate, DateTimeKind.Utc);
+            
+            // To make percentage accurate, expected days should not exceed today
+            var today = DateTime.UtcNow.Date;
+            var effectiveEndDate = endDate.Date > today ? today.AddDays(1).AddSeconds(-1) : endDate;
 
             var teachersQuery = _context.Teachers
                 .Include(t => t.HalaqaTeachers)
@@ -419,12 +422,12 @@ namespace KhairAPI.Services.Implementations
             var worksheet = workbook.Worksheets.Add("حضور المعلمين");
             worksheet.RightToLeft = true;
 
-            worksheet.Cell(1, 1).Value = $"تقرير حضور المعلمين - {monthName} {year}";
+            worksheet.Cell(1, 1).Value = $"تقرير حضور المعلمين - من {startDate:yyyy-MM-dd} إلى {endDate:yyyy-MM-dd}";
             worksheet.Cell(1, 1).Style.Font.Bold = true;
             worksheet.Cell(1, 1).Style.Font.FontSize = 14;
             worksheet.Range(1, 1, 1, 7).Merge();
 
-            var headers = new[] { "م", "المعلم", "الهاتف", "الأيام المتوقعة", "أيام الحضور", "أيام الغياب", "أيام التأخر", "نسبة الحضور" };
+            var headers = new[] { "م", "المعلم", "الهاتف", "الأيام المتوقعة (حتى اليوم)", "أيام الحضور", "أيام الغياب", "أيام التأخر", "نسبة الحضور" };
             for (int i = 0; i < headers.Length; i++)
             {
                 worksheet.Cell(3, i + 1).Value = headers[i];
@@ -444,7 +447,7 @@ namespace KhairAPI.Services.Implementations
                 var expectedDays = CalculateExpectedWorkingDays(
                     teacher.HalaqaTeachers.Select(ht => ht.Halaqa).ToList(),
                     startDate,
-                    endDate
+                    effectiveEndDate
                 );
 
                 var teacherAttendance = attendanceRecords

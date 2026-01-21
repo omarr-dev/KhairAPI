@@ -7,7 +7,7 @@ namespace KhairAPI.Services.Interfaces
         Task<byte[]> ExportAttendanceReportToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null);
         Task<byte[]> ExportHalaqaPerformanceToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null);
         Task<byte[]> ExportTeacherPerformanceToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null);
-        Task<byte[]> ExportTeacherAttendanceReportAsync(int year, int month, IEnumerable<int>? halaqaIds = null);
+        Task<byte[]> ExportTeacherAttendanceReportAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null);
     }
 }
 

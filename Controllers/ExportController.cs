@@ -113,22 +113,16 @@ namespace KhairAPI.Controllers
         [HttpGet("teacher-attendance")]
         [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> ExportTeacherAttendance(
-            [FromQuery] int? year = null,
-            [FromQuery] int? month = null,
+            [FromQuery] DateTime? fromDate = null,
+            [FromQuery] DateTime? toDate = null,
             [FromQuery] int? halaqaId = null)
         {
-            var targetYear = year ?? DateTime.UtcNow.Year;
-            var targetMonth = month ?? DateTime.UtcNow.Month;
-
-            if (targetMonth < 1 || targetMonth > 12)
-                return BadRequest(new { message = AppConstants.ErrorMessages.InvalidMonth });
-
-            if (targetYear < 2020 || targetYear > 2100)
-                return BadRequest(new { message = AppConstants.ErrorMessages.InvalidYear });
+            var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
+            var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
 
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
-            var bytes = await _exportService.ExportTeacherAttendanceReportAsync(targetYear, targetMonth, halaqaIds);
-            var fileName = $"teacher_attendance_{targetYear}_{targetMonth:D2}.xlsx";
+            var bytes = await _exportService.ExportTeacherAttendanceReportAsync(from, to, halaqaIds);
+            var fileName = $"teacher_attendance_{from:yyyyMMdd}_to_{to:yyyyMMdd}.xlsx";
             return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
     }
