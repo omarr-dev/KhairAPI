@@ -134,6 +134,7 @@ namespace KhairAPI.Controllers
                     Description = dto.Description?.Trim(),
                     Country = dto.Country?.Trim(),
                     City = dto.City?.Trim(),
+                    Logo = dto.Logo?.Trim(),
                     ManagerName = dto.ManagerName.Trim(),
                     PhoneNumber = formattedPhone,
                     Email = dto.Email?.Trim(),

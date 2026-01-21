@@ -28,6 +28,9 @@ namespace KhairAPI.Models.DTOs
         [MaxLength(100, ErrorMessage = "اسم المدينة يجب ألا يتجاوز 100 حرف")]
         public string? City { get; set; }
 
+        [MaxLength(500, ErrorMessage = "رابط الشعار يجب ألا يتجاوز 500 حرف")]
+        public string? Logo { get; set; }
+
         // Admin/Manager Information
         [Required(ErrorMessage = "اسم المسؤول مطلوب")]
         [MaxLength(255, ErrorMessage = "اسم المسؤول يجب ألا يتجاوز 255 حرف")]
