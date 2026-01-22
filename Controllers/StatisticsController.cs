@@ -220,5 +220,62 @@ namespace KhairAPI.Controllers
             var teacherAtRiskStudents = await _statisticsService.GetTeacherAtRiskStudentsAsync(teacherId.Value, limit);
             return Ok(teacherAtRiskStudents);
         }
+
+        /// <summary>
+        /// Gets target adoption overview statistics.
+        /// تغطية نظام الأهداف
+        /// 
+        /// - Teachers: See target coverage for their students only
+        /// - HalaqaSupervisors: See target coverage for their assigned halaqat
+        /// - Supervisors: See target coverage for all students
+        /// 
+        /// Optional: Filter by specific halaqa (validated for access)
+        /// Optional: Include per-halaqa breakdown
+        /// </summary>
+        /// <param name="halaqaId">Optional: Filter to a specific halaqa</param>
+        /// <param name="includeBreakdown">Include per-halaqa breakdown (default: false)</param>
+        [HttpGet("target-adoption-overview")]
+        public async Task<IActionResult> GetTargetAdoptionOverview(
+            [FromQuery] int? halaqaId = null,
+            [FromQuery] bool includeBreakdown = false)
+        {
+            int? teacherId = null;
+            List<int>? supervisedHalaqaIds = null;
+
+            if (_currentUserService.IsTeacher)
+            {
+                // Teachers can only see their own students
+                teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                // Teachers cannot filter by halaqa - they see all their students
+                if (halaqaId.HasValue)
+                    return BadRequest(new { message = "المعلم لا يمكنه تحديد حلقة معينة، سيتم عرض جميع طلابه" });
+            }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                // HalaqaSupervisors see only their assigned halaqat
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+
+                // Validate access to specific halaqa if requested
+                if (halaqaId.HasValue)
+                {
+                    if (supervisedHalaqaIds == null || !supervisedHalaqaIds.Contains(halaqaId.Value))
+                    {
+                        return Forbid();
+                    }
+                }
+            }
+            // Full Supervisors have no restrictions (teacherId and supervisedHalaqaIds remain null)
+
+            var result = await _statisticsService.GetTargetAdoptionOverviewAsync(
+                teacherId,
+                supervisedHalaqaIds,
+                halaqaId,
+                includeBreakdown);
+
+            return Ok(result);
+        }
     }
 }

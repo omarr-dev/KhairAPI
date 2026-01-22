@@ -721,6 +721,183 @@ namespace KhairAPI.Services.Implementations
                 .Where(d => d >= 0 && d <= 6)
                 .ToList();
         }
+
+        public async Task<TargetAdoptionOverviewDto> GetTargetAdoptionOverviewAsync(
+            int? teacherId = null,
+            List<int>? halaqaFilter = null,
+            int? selectedHalaqaId = null,
+            bool includeHalaqaBreakdown = false)
+        {
+            var today = DateTime.UtcNow.Date;
+            var oneWeekAgo = today.AddDays(-7);
+
+            // Build base query for students based on access scope
+            IQueryable<StudentHalaqa> studentHalaqaQuery = _context.StudentHalaqat
+                .Where(sh => sh.IsActive);
+
+            // Apply filters based on access level
+            if (teacherId.HasValue)
+            {
+                // Teacher sees only their students
+                studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.TeacherId == teacherId);
+            }
+            else if (halaqaFilter != null && halaqaFilter.Any())
+            {
+                // HalaqaSupervisor sees only their assigned halaqat
+                studentHalaqaQuery = studentHalaqaQuery.Where(sh => halaqaFilter.Contains(sh.HalaqaId));
+            }
+            // Full Supervisor sees all (no additional filter)
+
+            // Further filter by selected halaqa if provided
+            if (selectedHalaqaId.HasValue)
+            {
+                studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.HalaqaId == selectedHalaqaId);
+            }
+
+            // Get student IDs in scope with their halaqa and teacher info (single query)
+            var studentAssignments = await studentHalaqaQuery
+                .Select(sh => new
+                {
+                    sh.StudentId,
+                    sh.HalaqaId,
+                    sh.TeacherId,
+                    HalaqaName = sh.Halaqa!.Name
+                })
+                .ToListAsync();
+
+            var studentIds = studentAssignments.Select(s => s.StudentId).Distinct().ToHashSet();
+            var halaqaIds = studentAssignments.Select(s => s.HalaqaId).Distinct().ToHashSet();
+            var teacherIds = studentAssignments.Select(s => s.TeacherId).Distinct().ToHashSet();
+
+            var totalStudents = studentIds.Count;
+
+            if (totalStudents == 0)
+            {
+                return new TargetAdoptionOverviewDto
+                {
+                    CoveragePercentage = 0,
+                    StudentsWithTargets = 0,
+                    TotalStudents = 0,
+                    WeeklyChangePercentage = 0,
+                    HalaqaCoverage = new HalaqaCoverageDto { HalaqatWithTargets = 0, TotalHalaqat = 0 },
+                    TeacherCoverage = new TeacherCoverageDto { TeachersWithTargets = 0, TotalTeachers = 0 },
+                    ActivationRate = 0,
+                    HalaqaBreakdown = new List<HalaqaTargetStatsDto>()
+                };
+            }
+
+            // Get all targets for students in scope (single query)
+            var studentTargets = await _context.StudentTargets
+                .Where(t => studentIds.Contains(t.StudentId))
+                .Select(t => new
+                {
+                    t.StudentId,
+                    t.CreatedAt,
+                    HasMemorizationTarget = t.MemorizationLinesTarget.HasValue,
+                    HasRevisionTarget = t.RevisionPagesTarget.HasValue,
+                    HasConsolidationTarget = t.ConsolidationPagesTarget.HasValue
+                })
+                .ToListAsync();
+
+            // Calculate current coverage
+            // Note: StudentTarget has unique constraint on StudentId, so Count() = distinct students
+            var studentIdsWithTargets = studentTargets.Select(t => t.StudentId).ToHashSet();
+            var studentsWithTargets = studentIdsWithTargets.Count;
+            var coveragePercentage = totalStudents > 0 
+                ? Math.Round((double)studentsWithTargets / totalStudents * 100, 1) 
+                : 0;
+
+            // Calculate weekly change - students with targets created before one week ago vs now
+            var studentsWithTargetsLastWeek = studentTargets
+                .Where(t => t.CreatedAt <= oneWeekAgo)
+                .Select(t => t.StudentId)
+                .Distinct()
+                .Count();
+            var totalStudentsLastWeek = totalStudents; // Approximation - actual would need historical data
+            
+            var lastWeekPercentage = totalStudentsLastWeek > 0 
+                ? (double)studentsWithTargetsLastWeek / totalStudentsLastWeek * 100 
+                : 0;
+            var weeklyChangePercentage = Math.Round(coveragePercentage - lastWeekPercentage, 1);
+
+            // Calculate halaqa coverage - halaqat with at least one student having targets
+            // Use HashSet for O(1) lookup instead of LINQ Where + Contains
+            var halaqatWithTargets = studentAssignments
+                .Where(sa => studentIdsWithTargets.Contains(sa.StudentId))
+                .Select(sa => sa.HalaqaId)
+                .Distinct()
+                .Count();
+
+            // Calculate teacher coverage - teachers with at least one student having targets
+            var teachersWithTargets = studentAssignments
+                .Where(sa => studentIdsWithTargets.Contains(sa.StudentId))
+                .Select(sa => sa.TeacherId)
+                .Distinct()
+                .Count();
+
+            // Calculate activation rate - percentage of students with targets who have recent progress (last 7 days)
+            var recentProgressStudentIds = await _context.ProgressRecords
+                .Where(p => studentIdsWithTargets.Contains(p.StudentId) && p.Date >= oneWeekAgo && p.Date <= today)
+                .Select(p => p.StudentId)
+                .Distinct()
+                .ToListAsync();
+
+            var activationRate = studentsWithTargets > 0 
+                ? Math.Round((double)recentProgressStudentIds.Count / studentsWithTargets * 100, 1) 
+                : 0;
+
+            var result = new TargetAdoptionOverviewDto
+            {
+                CoveragePercentage = coveragePercentage,
+                StudentsWithTargets = studentsWithTargets,
+                TotalStudents = totalStudents,
+                WeeklyChangePercentage = weeklyChangePercentage,
+                HalaqaCoverage = new HalaqaCoverageDto
+                {
+                    HalaqatWithTargets = halaqatWithTargets,
+                    TotalHalaqat = halaqaIds.Count
+                },
+                TeacherCoverage = new TeacherCoverageDto
+                {
+                    TeachersWithTargets = teachersWithTargets,
+                    TotalTeachers = teacherIds.Count
+                },
+                ActivationRate = activationRate
+            };
+
+            // Include per-halaqa breakdown if requested
+            if (includeHalaqaBreakdown)
+            {
+                // Group by halaqa and calculate stats efficiently
+                var halaqaGroups = studentAssignments
+                    .GroupBy(sa => new { sa.HalaqaId, sa.HalaqaName })
+                    .Select(g =>
+                    {
+                        // Use HashSet for O(1) lookups instead of repeated Contains() calls
+                        var halaqaStudentIds = g.Select(x => x.StudentId).ToHashSet();
+                        var totalStudents = halaqaStudentIds.Count;
+                        var studentsWithTargets = halaqaStudentIds.Count(id => studentIdsWithTargets.Contains(id));
+
+                        return new HalaqaTargetStatsDto
+                        {
+                            HalaqaId = g.Key.HalaqaId,
+                            HalaqaName = g.Key.HalaqaName,
+                            TotalStudents = totalStudents,
+                            StudentsWithTargets = studentsWithTargets,
+                            CoveragePercentage = totalStudents > 0
+                                ? Math.Round((double)studentsWithTargets / totalStudents * 100, 1)
+                                : 0
+                        };
+                    })
+                    .OrderByDescending(h => h.CoveragePercentage)
+                    .ThenByDescending(h => h.TotalStudents)
+                    .ToList();
+                
+                result.HalaqaBreakdown = halaqaGroups;
+            }
+
+            return result;
+        }
     }
 }
 

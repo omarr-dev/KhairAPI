@@ -30,6 +30,20 @@ namespace KhairAPI.Services.Interfaces
         Task<List<TeacherRankingDto>> GetTeacherRankingAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null);
         Task<List<AtRiskStudentDto>> GetAtRiskStudentsAsync(int limit = 20, List<int>? halaqaFilter = null);
         Task<List<AtRiskStudentDto>> GetTeacherAtRiskStudentsAsync(int teacherId, int limit = 10);
+        
+        /// <summary>
+        /// Gets target adoption overview statistics.
+        /// تغطية نظام الأهداف - إحصائيات تبني نظام الأهداف
+        /// </summary>
+        /// <param name="teacherId">Optional teacher filter (for teachers viewing their students)</param>
+        /// <param name="halaqaFilter">Optional list of halaqa IDs (for HalaqaSupervisors)</param>
+        /// <param name="selectedHalaqaId">Optional specific halaqa to view details for</param>
+        /// <param name="includeHalaqaBreakdown">Include per-halaqa breakdown in response</param>
+        Task<TargetAdoptionOverviewDto> GetTargetAdoptionOverviewAsync(
+            int? teacherId = null,
+            List<int>? halaqaFilter = null,
+            int? selectedHalaqaId = null,
+            bool includeHalaqaBreakdown = false);
     }
 }
 
