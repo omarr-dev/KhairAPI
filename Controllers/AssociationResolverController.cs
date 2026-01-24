@@ -110,15 +110,16 @@ namespace KhairAPI.Controllers
                 return BadRequest(new { message = "رقم الجوال غير صحيح. يجب أن يكون رقم سعودي يبدأ بـ +966 5" });
             }
 
-            // Check if phone number is already registered
-            var existingUser = await _context.Users
+            // Check if this phone is already the manager of another association
+            // Note: Same phone CAN be a teacher/staff in multiple associations, but can only CREATE one association
+            var isAlreadyManager = await _context.Associations
                 .IgnoreQueryFilters()
-                .AnyAsync(u => u.PhoneNumber == formattedPhone);
+                .AnyAsync(a => a.PhoneNumber == formattedPhone && a.IsActive);
 
-            if (existingUser)
+            if (isAlreadyManager)
             {
-                _logger.LogWarning("Attempted to register with existing phone number: {PhoneNumber}", formattedPhone);
-                return Conflict(new { message = "رقم الجوال مسجل بالفعل. يرجى تسجيل الدخول أو استخدام رقم آخر." });
+                _logger.LogWarning("Attempted to create association with phone already registered as manager: {PhoneNumber}", formattedPhone);
+                return Conflict(new { message = "رقم الجوال مسجل كمدير لجمعية أخرى. يمكنك تسجيل الدخول للجمعية الحالية أو استخدام رقم آخر." });
             }
 
             // Use transaction for atomicity

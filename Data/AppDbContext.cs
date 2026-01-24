@@ -45,7 +45,8 @@ namespace KhairAPI.Data
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.HasIndex(e => e.PhoneNumber).IsUnique();
+                // Phone number must be unique within each association (allows same phone in different associations)
+                entity.HasIndex(e => new { e.PhoneNumber, e.AssociationId }).IsUnique();
                 entity.HasIndex(e => e.AssociationId);
                 entity.Property(e => e.PhoneNumber).IsRequired().HasMaxLength(20);
                 entity.Property(e => e.FullName).IsRequired().HasMaxLength(255);

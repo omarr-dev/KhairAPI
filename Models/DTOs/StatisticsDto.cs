@@ -214,5 +214,249 @@ namespace KhairAPI.Models.DTOs
         public int TotalStudents { get; set; }
         public double CoveragePercentage { get; set; }
     }
+
+    /// <summary>
+    /// Parameters for target adoption overview request
+    /// </summary>
+    public class TargetAdoptionFilterDto
+    {
+        public int? TeacherId { get; set; }
+        public List<int>? SupervisedHalaqaIds { get; set; }
+        public int? SelectedHalaqaId { get; set; }
+        public bool IncludeHalaqaBreakdown { get; set; }
+    }
+
+    /// <summary>
+    /// Daily achievement statistics showing aggregated progress vs targets
+    /// إنجاز اليوم - إحصائيات الإنجاز اليومي المجمّعة
+    /// </summary>
+    public class DailyAchievementStatsDto
+    {
+        /// <summary>
+        /// Date range start
+        /// </summary>
+        public DateTime FromDate { get; set; }
+
+        /// <summary>
+        /// Date range end
+        /// </summary>
+        public DateTime ToDate { get; set; }
+
+        /// <summary>
+        /// Total students in scope
+        /// </summary>
+        public int TotalStudents { get; set; }
+
+        /// <summary>
+        /// Number of students with targets set
+        /// </summary>
+        public int StudentsWithTargets { get; set; }
+
+        /// <summary>
+        /// Memorization achievement (حفظ) - measured in lines (سطر)
+        /// </summary>
+        public AchievementCategoryDto Memorization { get; set; } = new();
+
+        /// <summary>
+        /// Revision achievement (مراجعة) - measured in pages (وجه)
+        /// </summary>
+        public AchievementCategoryDto Revision { get; set; } = new();
+
+        /// <summary>
+        /// Consolidation achievement (تثبيت) - measured in pages (وجه)
+        /// </summary>
+        public AchievementCategoryDto Consolidation { get; set; } = new();
+
+        /// <summary>
+        /// Week summary showing target achievement per day
+        /// ملخص الأسبوع
+        /// </summary>
+        public WeekSummaryDto WeekSummary { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Achievement category with target, achieved, and percentage
+    /// </summary>
+    public class AchievementCategoryDto
+    {
+        /// <summary>
+        /// Amount achieved (lines for memorization, pages for revision/consolidation)
+        /// </summary>
+        public double Achieved { get; set; }
+
+        /// <summary>
+        /// Target amount (sum of all student targets in scope)
+        /// </summary>
+        public double Target { get; set; }
+
+        /// <summary>
+        /// Achievement percentage (capped at 100)
+        /// </summary>
+        public double Percentage { get; set; }
+
+        /// <summary>
+        /// Unit label: "سطر" for lines, "وجه" for pages
+        /// </summary>
+        public string Unit { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Week summary showing daily target achievement status
+    /// </summary>
+    public class WeekSummaryDto
+    {
+        /// <summary>
+        /// Daily achievement status for each day in the range
+        /// Each entry: Date and whether targets were met
+        /// </summary>
+        public List<DayAchievementStatusDto> Days { get; set; } = new();
+
+        /// <summary>
+        /// Number of days where overall target was met
+        /// </summary>
+        public int DaysTargetMet { get; set; }
+
+        /// <summary>
+        /// Total days in the range
+        /// </summary>
+        public int TotalDays { get; set; }
+    }
+
+    /// <summary>
+    /// Single day achievement status
+    /// </summary>
+    public class DayAchievementStatusDto
+    {
+        public DateTime Date { get; set; }
+        
+        /// <summary>
+        /// Whether the aggregated target was met for this day
+        /// </summary>
+        public bool TargetMet { get; set; }
+        
+        /// <summary>
+        /// Overall achievement percentage for the day
+        /// </summary>
+        public double Percentage { get; set; }
+    }
+
+    /// <summary>
+    /// Filter parameters for daily achievement statistics
+    /// </summary>
+    public class DailyAchievementFilterDto
+    {
+        public int? TeacherId { get; set; }
+        public List<int>? SupervisedHalaqaIds { get; set; }
+        public int? SelectedHalaqaId { get; set; }
+        public DateTime FromDate { get; set; }
+        public DateTime ToDate { get; set; }
+    }
+
+    /// <summary>
+    /// Streak Leaderboard - أطول سلاسل الإنجاز
+    /// Shows students with the longest consecutive progress streaks
+    /// </summary>
+    public class StreakLeaderboardDto
+    {
+        /// <summary>
+        /// List of students with their streaks, ordered by streak length descending
+        /// </summary>
+        public List<StudentStreakDto> Students { get; set; } = new();
+
+        /// <summary>
+        /// Total number of students in scope
+        /// </summary>
+        public int TotalStudentsInScope { get; set; }
+
+        /// <summary>
+        /// Number of students with active streaks (≥1 day)
+        /// </summary>
+        public int StudentsWithActiveStreaks { get; set; }
+
+        /// <summary>
+        /// Optional filter applied - halaqa name if filtered by specific halaqa
+        /// </summary>
+        public string? FilteredByHalaqa { get; set; }
+    }
+
+    /// <summary>
+    /// Student streak information
+    /// معلومات سلسلة الإنجاز للطالب
+    /// </summary>
+    public class StudentStreakDto
+    {
+        /// <summary>
+        /// Student ID
+        /// </summary>
+        public int StudentId { get; set; }
+
+        /// <summary>
+        /// Student full name
+        /// </summary>
+        public string StudentName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Halaqa name
+        /// </summary>
+        public string HalaqaName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Halaqa ID
+        /// </summary>
+        public int HalaqaId { get; set; }
+
+        /// <summary>
+        /// Current active streak in days
+        /// سلسلة الإنجاز الحالية (عدد الأيام)
+        /// </summary>
+        public int CurrentStreak { get; set; }
+
+        /// <summary>
+        /// Longest streak ever achieved
+        /// أطول سلسلة إنجاز تم تحقيقها
+        /// </summary>
+        public int LongestStreak { get; set; }
+
+        /// <summary>
+        /// Whether the streak is currently active (has progress today or on last active day)
+        /// </summary>
+        public bool IsStreakActive { get; set; }
+
+        /// <summary>
+        /// Last progress date
+        /// </summary>
+        public DateTime? LastProgressDate { get; set; }
+
+        /// <summary>
+        /// Rank position in the leaderboard
+        /// </summary>
+        public int Rank { get; set; }
+    }
+
+    /// <summary>
+    /// Filter parameters for streak leaderboard
+    /// </summary>
+    public class StreakLeaderboardFilterDto
+    {
+        /// <summary>
+        /// Teacher ID (for teacher-scoped queries)
+        /// </summary>
+        public int? TeacherId { get; set; }
+
+        /// <summary>
+        /// List of halaqa IDs the user can access (for HalaqaSupervisor)
+        /// </summary>
+        public List<int>? SupervisedHalaqaIds { get; set; }
+
+        /// <summary>
+        /// Optional: Filter to a specific halaqa
+        /// </summary>
+        public int? SelectedHalaqaId { get; set; }
+
+        /// <summary>
+        /// Number of top students to return (default: 10)
+        /// </summary>
+        public int Limit { get; set; } = 10;
+    }
 }
 

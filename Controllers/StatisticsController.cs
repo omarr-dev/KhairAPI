@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using KhairAPI.Services.Interfaces;
+using KhairAPI.Models.DTOs;
 using KhairAPI.Core.Helpers;
 
 namespace KhairAPI.Controllers
@@ -239,14 +240,17 @@ namespace KhairAPI.Controllers
             [FromQuery] int? halaqaId = null,
             [FromQuery] bool includeBreakdown = false)
         {
-            int? teacherId = null;
-            List<int>? supervisedHalaqaIds = null;
+            var filter = new TargetAdoptionFilterDto
+            {
+                SelectedHalaqaId = halaqaId,
+                IncludeHalaqaBreakdown = includeBreakdown
+            };
 
             if (_currentUserService.IsTeacher)
             {
                 // Teachers can only see their own students
-                teacherId = await _currentUserService.GetTeacherIdAsync();
-                if (!teacherId.HasValue)
+                filter.TeacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!filter.TeacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
                 // Teachers cannot filter by halaqa - they see all their students
@@ -256,12 +260,12 @@ namespace KhairAPI.Controllers
             else if (_currentUserService.IsHalaqaSupervisor)
             {
                 // HalaqaSupervisors see only their assigned halaqat
-                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+                filter.SupervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
 
                 // Validate access to specific halaqa if requested
                 if (halaqaId.HasValue)
                 {
-                    if (supervisedHalaqaIds == null || !supervisedHalaqaIds.Contains(halaqaId.Value))
+                    if (filter.SupervisedHalaqaIds == null || !filter.SupervisedHalaqaIds.Contains(halaqaId.Value))
                     {
                         return Forbid();
                     }
@@ -269,11 +273,173 @@ namespace KhairAPI.Controllers
             }
             // Full Supervisors have no restrictions (teacherId and supervisedHalaqaIds remain null)
 
-            var result = await _statisticsService.GetTargetAdoptionOverviewAsync(
-                teacherId,
-                supervisedHalaqaIds,
-                halaqaId,
-                includeBreakdown);
+            var result = await _statisticsService.GetTargetAdoptionOverviewAsync(filter);
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Gets daily achievement statistics showing aggregated progress vs targets.
+        /// إنجاز اليوم - إحصائيات الإنجاز اليومي المجمّعة
+        /// 
+        /// - Teachers: See aggregated achievements for their students only
+        /// - HalaqaSupervisors: See aggregated achievements for their assigned halaqat
+        /// - Supervisors: See aggregated achievements for all students or filter by halaqa
+        /// 
+        /// Default date range: today + last 7 days
+        /// </summary>
+        /// <param name="halaqaId">Optional: Filter to a specific halaqa</param>
+        /// <param name="fromDate">Optional: Start date (default: 7 days ago)</param>
+        /// <param name="toDate">Optional: End date (default: today)</param>
+        [HttpGet("daily-achievement")]
+        public async Task<IActionResult> GetDailyAchievementStats(
+            [FromQuery] int? halaqaId = null,
+            [FromQuery] string? fromDate = null,
+            [FromQuery] string? toDate = null)
+        {
+            // Parse and validate dates
+            var today = DateTime.UtcNow.Date;
+            DateTime parsedFromDate = today.AddDays(-6); // Default: last 7 days including today
+            DateTime parsedToDate = today;
+
+            if (!string.IsNullOrEmpty(fromDate))
+            {
+                if (!DateTime.TryParseExact(fromDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out parsedFromDate))
+                {
+                    return BadRequest(new { message = "صيغة تاريخ البداية غير صحيحة. استخدم الصيغة: YYYY-MM-DD" });
+                }
+            }
+
+            if (!string.IsNullOrEmpty(toDate))
+            {
+                if (!DateTime.TryParseExact(toDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out parsedToDate))
+                {
+                    return BadRequest(new { message = "صيغة تاريخ النهاية غير صحيحة. استخدم الصيغة: YYYY-MM-DD" });
+                }
+            }
+
+            // Security: Validate date range
+            var minAllowedDate = new DateTime(2020, 1, 1);
+            var maxAllowedDate = today;
+
+            if (parsedFromDate < minAllowedDate || parsedToDate < minAllowedDate)
+            {
+                return BadRequest(new { message = "التاريخ لا يمكن أن يكون قبل 2020-01-01" });
+            }
+
+            if (parsedFromDate > maxAllowedDate.AddDays(1) || parsedToDate > maxAllowedDate.AddDays(1))
+            {
+                return BadRequest(new { message = "التاريخ لا يمكن أن يكون في المستقبل" });
+            }
+
+            if (parsedFromDate > parsedToDate)
+            {
+                return BadRequest(new { message = "تاريخ البداية يجب أن يكون قبل تاريخ النهاية" });
+            }
+
+            // Security: Limit date range to prevent performance issues
+            const int maxRangeDays = 90;
+            if ((parsedToDate - parsedFromDate).Days > maxRangeDays)
+            {
+                return BadRequest(new { message = $"الفترة الزمنية لا يمكن أن تتجاوز {maxRangeDays} يوم" });
+            }
+
+            var filter = new DailyAchievementFilterDto
+            {
+                FromDate = parsedFromDate,
+                ToDate = parsedToDate,
+                SelectedHalaqaId = halaqaId
+            };
+
+            if (_currentUserService.IsTeacher)
+            {
+                // Teachers can only see their own students
+                filter.TeacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!filter.TeacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                // Teachers cannot filter by halaqa - they see all their students
+                if (halaqaId.HasValue)
+                    return BadRequest(new { message = "المعلم لا يمكنه تحديد حلقة معينة" });
+            }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                // HalaqaSupervisors see only their assigned halaqat
+                filter.SupervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+
+                // Validate access to specific halaqa if requested
+                if (halaqaId.HasValue)
+                {
+                    if (filter.SupervisedHalaqaIds == null || !filter.SupervisedHalaqaIds.Contains(halaqaId.Value))
+                    {
+                        return Forbid();
+                    }
+                }
+            }
+            // Full Supervisors have no restrictions (teacherId and supervisedHalaqaIds remain null)
+
+            var result = await _statisticsService.GetDailyAchievementStatsAsync(filter);
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Gets streak leaderboard - students with longest consecutive progress days.
+        /// أطول سلاسل الإنجاز
+        /// 
+        /// - Teachers: See streaks for their students only
+        /// - HalaqaSupervisors: See streaks for students in their assigned halaqat
+        /// - Supervisors: See all students, can filter by halaqa
+        /// 
+        /// A streak counts consecutive active halaqa days where the student had at least one progress record.
+        /// </summary>
+        /// <param name="halaqaId">Optional: Filter to a specific halaqa</param>
+        /// <param name="limit">Number of top students to return (default: 10, max: 100)</param>
+        [HttpGet("streak-leaderboard")]
+        public async Task<IActionResult> GetStreakLeaderboard(
+            [FromQuery] int? halaqaId = null,
+            [FromQuery] int limit = 10)
+        {
+            // Security: Validate and clamp limit
+            if (limit <= 0) limit = 10;
+            if (limit > 100) limit = 100;
+
+            var filter = new StreakLeaderboardFilterDto
+            {
+                SelectedHalaqaId = halaqaId,
+                Limit = limit
+            };
+
+            if (_currentUserService.IsTeacher)
+            {
+                // Teachers see only their students
+                filter.TeacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!filter.TeacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                // Teachers cannot filter by halaqa - they see all their students
+                if (halaqaId.HasValue)
+                    return BadRequest(new { message = "المعلم لا يمكنه تحديد حلقة معينة" });
+            }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                // HalaqaSupervisors see only their assigned halaqat
+                filter.SupervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+
+                // Validate access to specific halaqa if requested
+                if (halaqaId.HasValue)
+                {
+                    if (filter.SupervisedHalaqaIds == null || !filter.SupervisedHalaqaIds.Contains(halaqaId.Value))
+                    {
+                        return Forbid();
+                    }
+                }
+            }
+            // Full Supervisors have no restrictions (teacherId and supervisedHalaqaIds remain null)
+
+            var result = await _statisticsService.GetStreakLeaderboardAsync(filter);
 
             return Ok(result);
         }

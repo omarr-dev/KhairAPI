@@ -35,15 +35,33 @@ namespace KhairAPI.Services.Interfaces
         /// Gets target adoption overview statistics.
         /// تغطية نظام الأهداف - إحصائيات تبني نظام الأهداف
         /// </summary>
-        /// <param name="teacherId">Optional teacher filter (for teachers viewing their students)</param>
-        /// <param name="halaqaFilter">Optional list of halaqa IDs (for HalaqaSupervisors)</param>
-        /// <param name="selectedHalaqaId">Optional specific halaqa to view details for</param>
-        /// <param name="includeHalaqaBreakdown">Include per-halaqa breakdown in response</param>
-        Task<TargetAdoptionOverviewDto> GetTargetAdoptionOverviewAsync(
-            int? teacherId = null,
-            List<int>? halaqaFilter = null,
-            int? selectedHalaqaId = null,
-            bool includeHalaqaBreakdown = false);
+        /// <param name="filter">Filter parameters for the overview</param>
+        Task<TargetAdoptionOverviewDto> GetTargetAdoptionOverviewAsync(TargetAdoptionFilterDto filter);
+
+        /// <summary>
+        /// Gets daily achievement statistics showing aggregated progress vs targets.
+        /// إنجاز اليوم - إحصائيات الإنجاز اليومي المجمّعة
+        /// 
+        /// Returns:
+        /// - Aggregated targets and achievements for memorization (lines), revision (pages), consolidation (pages)
+        /// - Week summary showing days where targets were met
+        /// </summary>
+        /// <param name="filter">Filter parameters including role-based filtering and date range</param>
+        Task<DailyAchievementStatsDto> GetDailyAchievementStatsAsync(DailyAchievementFilterDto filter);
+
+        /// <summary>
+        /// Gets the streak leaderboard showing students with longest consecutive progress days.
+        /// أطول سلاسل الإنجاز
+        /// 
+        /// A streak is counted based on consecutive halaqa active days with at least one progress record.
+        /// 
+        /// Access control:
+        /// - Teachers: See students in their halaqat only
+        /// - HalaqaSupervisors: See students in their assigned halaqat
+        /// - Supervisors: See all students, can filter by halaqa
+        /// </summary>
+        /// <param name="filter">Filter parameters including role-based access and optional halaqa filter</param>
+        Task<StreakLeaderboardDto> GetStreakLeaderboardAsync(StreakLeaderboardFilterDto filter);
     }
 }
 
