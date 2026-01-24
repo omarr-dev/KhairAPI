@@ -16,6 +16,10 @@ namespace KhairAPI.Models.Entities
 
         public string? PhoneNumber { get; set; }
 
+        public string? Email { get; set; }
+
+        public string? IdNumber { get; set; }
+
         public string? Qualification { get; set; }
 
         public DateTime JoinDate { get; set; } = DateTime.UtcNow;

@@ -73,6 +73,8 @@ namespace KhairAPI.Data
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.FullName).IsRequired().HasMaxLength(255);
                 entity.Property(e => e.PhoneNumber).HasMaxLength(20);
+                entity.Property(e => e.Email).HasMaxLength(255);
+                entity.Property(e => e.IdNumber).HasMaxLength(20);
                 entity.Property(e => e.Qualification).HasMaxLength(500);
 
                 // Create index on UserId for better join performance

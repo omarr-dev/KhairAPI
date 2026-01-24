@@ -76,9 +76,17 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPost]
-        [Authorize(Policy = AppConstants.Policies.SupervisorOnly)]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> CreateTeacher([FromBody] CreateTeacherDto dto)
         {
+            // HalaqaSupervisors can only assign teachers to their supervised halaqas
+            if (_currentUserService.IsHalaqaSupervisor && dto.HalaqaId.HasValue)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(dto.HalaqaId.Value);
+                if (!canAccess)
+                    return Forbid();
+            }
+            
             var teacher = await _teacherService.CreateTeacherAsync(dto);
             return CreatedAtAction(nameof(GetTeacherById), new { id = teacher.Id }, teacher);
         }

@@ -180,6 +180,8 @@ namespace KhairAPI.Services.Implementations
                 UserId = user.Id,
                 FullName = dto.FullName,
                 PhoneNumber = formattedPhone,
+                Email = dto.Email,
+                IdNumber = dto.IdNumber,
                 Qualification = dto.Qualification,
                 JoinDate = DateTime.UtcNow,
                 AssociationId = _tenantService.CurrentAssociationId.Value
@@ -188,15 +190,40 @@ namespace KhairAPI.Services.Implementations
             _context.Teachers.Add(teacher);
             await _context.SaveChangesAsync();
 
+            // Assign teacher to halaqa if provided
+            if (dto.HalaqaId.HasValue)
+            {
+                var halaqa = await _context.Halaqat.FindAsync(dto.HalaqaId.Value);
+                if (halaqa == null)
+                    throw new KeyNotFoundException(AppConstants.ErrorMessages.HalaqaNotFound);
+
+                var halaqaTeacher = new HalaqaTeacher
+                {
+                    TeacherId = teacher.Id,
+                    HalaqaId = dto.HalaqaId.Value,
+                    AssignedDate = DateTime.UtcNow,
+                    IsPrimary = false,
+                    AssociationId = _tenantService.CurrentAssociationId.Value
+                };
+
+                _context.HalaqaTeachers.Add(halaqaTeacher);
+                await _context.SaveChangesAsync();
+            }
+
+            // Reload teacher with halaqa count
+            await _context.Entry(teacher).Collection(t => t.HalaqaTeachers).LoadAsync();
+
             return new TeacherDto
             {
                 Id = teacher.Id,
                 UserId = teacher.UserId,
                 FullName = teacher.FullName,
                 PhoneNumber = teacher.PhoneNumber,
+                Email = teacher.Email,
+                IdNumber = teacher.IdNumber,
                 Qualification = teacher.Qualification,
                 JoinDate = teacher.JoinDate,
-                HalaqatCount = 0,
+                HalaqatCount = teacher.HalaqaTeachers.Count,
                 StudentsCount = 0
             };
         }
@@ -211,14 +238,34 @@ namespace KhairAPI.Services.Implementations
             if (teacher == null)
                 return false;
 
+            // Format and validate phone number if provided
+            string? formattedPhone = null;
+            if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
+            {
+                formattedPhone = PhoneNumberValidator.Format(dto.PhoneNumber);
+                if (formattedPhone == null)
+                {
+                    throw new InvalidOperationException(AppConstants.ErrorMessages.InvalidPhoneNumber);
+                }
+
+                // Check if phone number already exists (excluding current teacher's user)
+                var existingUserId = teacher.User?.Id;
+                if (await _context.Users.AnyAsync(u => u.PhoneNumber == formattedPhone && u.Id != existingUserId))
+                {
+                    throw new InvalidOperationException(AppConstants.ErrorMessages.PhoneNumberAlreadyExists);
+                }
+            }
+
             teacher.FullName = dto.FullName;
-            teacher.PhoneNumber = dto.PhoneNumber;
+            teacher.PhoneNumber = formattedPhone ?? dto.PhoneNumber;
+            teacher.Email = dto.Email;
+            teacher.IdNumber = dto.IdNumber;
             teacher.Qualification = dto.Qualification;
 
             if (teacher.User != null)
             {
                 teacher.User.FullName = dto.FullName;
-                teacher.User.PhoneNumber = dto.PhoneNumber;
+                teacher.User.PhoneNumber = formattedPhone ?? dto.PhoneNumber;
             }
 
             await _context.SaveChangesAsync();
@@ -325,6 +372,8 @@ namespace KhairAPI.Services.Implementations
                 UserId = teacher.UserId,
                 FullName = teacher.FullName,
                 PhoneNumber = teacher.PhoneNumber,
+                Email = teacher.Email,
+                IdNumber = teacher.IdNumber,
                 Qualification = teacher.Qualification,
                 JoinDate = teacher.JoinDate,
                 HalaqatCount = teacher.HalaqaTeachers.Count,
