@@ -3,6 +3,7 @@ using KhairAPI.Data;
 using KhairAPI.Models.DTOs;
 using KhairAPI.Models.Entities;
 using KhairAPI.Services.Interfaces;
+using static KhairAPI.Core.Extensions.CacheKeys;
 
 namespace KhairAPI.Services.Implementations
 {
@@ -10,11 +11,13 @@ namespace KhairAPI.Services.Implementations
     {
         private readonly AppDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly ICacheService _cache;
 
-        public AttendanceService(AppDbContext context, ITenantService tenantService)
+        public AttendanceService(AppDbContext context, ITenantService tenantService, ICacheService cache)
         {
             _context = context;
             _tenantService = tenantService;
+            _cache = cache;
         }
 
         public async Task<AttendanceRecordDto> CreateAttendanceAsync(CreateAttendanceDto dto)
@@ -50,6 +53,8 @@ namespace KhairAPI.Services.Implementations
             }
 
             await _context.SaveChangesAsync();
+            
+            InvalidateStatisticsCache();
 
             var savedAttendance = await _context.Attendances
                 .Include(a => a.Student)
@@ -98,6 +103,9 @@ namespace KhairAPI.Services.Implementations
             }
 
             await _context.SaveChangesAsync();
+            
+            InvalidateStatisticsCache();
+            
             return true;
         }
 
@@ -230,6 +238,8 @@ namespace KhairAPI.Services.Implementations
             attendance.Status = status;
             attendance.Notes = notes;
             await _context.SaveChangesAsync();
+            
+            InvalidateStatisticsCache();
 
             return true;
         }
@@ -242,8 +252,17 @@ namespace KhairAPI.Services.Implementations
 
             _context.Attendances.Remove(attendance);
             await _context.SaveChangesAsync();
+            
+            InvalidateStatisticsCache();
 
             return true;
+        }
+
+        private void InvalidateStatisticsCache()
+        {
+            _cache.Remove(SystemWideStats);
+            _cache.RemoveByPrefix("supervisor_dashboard");
+            _cache.RemoveByPrefix("dashboard_stats");
         }
 
         private AttendanceRecordDto MapToDto(Attendance attendance)

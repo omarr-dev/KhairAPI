@@ -4,16 +4,30 @@ using KhairAPI.Models.DTOs;
 using KhairAPI.Models.Entities;
 using KhairAPI.Services.Interfaces;
 using KhairAPI.Core.Helpers;
+using static KhairAPI.Core.Extensions.CacheKeys;
+using static KhairAPI.Core.Extensions.CacheDurations;
 
 namespace KhairAPI.Services.Implementations
 {
+    /// <summary>
+    /// Internal record for daily progress aggregation - strongly typed for performance
+    /// </summary>
+    internal record DailyProgressData
+    {
+        public double MemorizationLines { get; init; }
+        public double RevisionLines { get; init; }
+        public double ConsolidationLines { get; init; }
+    }
+
     public class StatisticsService : IStatisticsService
     {
         private readonly AppDbContext _context;
+        private readonly ICacheService _cache;
 
-        public StatisticsService(AppDbContext context)
+        public StatisticsService(AppDbContext context, ICacheService cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         public async Task<DashboardStatsDto> GetDashboardStatsAsync(int? teacherId = null, List<int>? halaqaFilter = null)
@@ -233,6 +247,14 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<SystemWideStatsDto> GetSystemWideStatsAsync()
         {
+            return await _cache.GetOrCreateAsync(
+                SystemWideStats,
+                async () => await GetSystemWideStatsInternalAsync(),
+                Short);
+        }
+
+        private async Task<SystemWideStatsDto> GetSystemWideStatsInternalAsync()
+        {
             var today = DateTime.UtcNow.Date;
             var yesterday = today.AddDays(-1);
             var weekStart = today.AddDays(-(int)today.DayOfWeek);
@@ -291,6 +313,17 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<SupervisorDashboardDto> GetSupervisorDashboardAsync(List<int>? halaqaFilter = null)
         {
+            var cacheKey = ForParams(SupervisorDashboard, halaqaFilter != null ? string.Join(",", halaqaFilter) : "all");
+            
+            return await _cache.GetOrCreateAsync(
+                cacheKey,
+                async () => await GetSupervisorDashboardInternalAsync(halaqaFilter),
+                Short,
+                size: 5);
+        }
+
+        private async Task<SupervisorDashboardDto> GetSupervisorDashboardInternalAsync(List<int>? halaqaFilter = null)
+        {
             var today = DateTime.UtcNow.Date;
             var weekAgo = today.AddDays(-7);
 
@@ -309,9 +342,9 @@ namespace KhairAPI.Services.Implementations
             var todayRevision = todayProgress.Count(p => p.Type == ProgressType.Revision);
 
             // Execute ranking methods sequentially (they share the same DbContext)
-            var halaqatStats = await GetHalaqaRankingAsync(7, 5);
-            var teacherStats = await GetTeacherRankingAsync(7, 5);
-            var atRiskStudents = await GetAtRiskStudentsAsync(10);
+            var halaqatStats = await GetHalaqaRankingInternalAsync(7, 5, halaqaFilter);
+            var teacherStats = await GetTeacherRankingInternalAsync(7, 5, halaqaFilter);
+            var atRiskStudents = await GetAtRiskStudentsInternalAsync(10, halaqaFilter);
 
             return new SupervisorDashboardDto
             {
@@ -329,6 +362,17 @@ namespace KhairAPI.Services.Implementations
         }
 
         public async Task<List<HalaqaRankingDto>> GetHalaqaRankingAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
+        {
+            var cacheKey = ForParams(HalaqaRanking, days, limit);
+            
+            return await _cache.GetOrCreateAsync(
+                cacheKey,
+                async () => await GetHalaqaRankingInternalAsync(days, limit, halaqaFilter),
+                Medium,
+                size: 3);
+        }
+
+        private async Task<List<HalaqaRankingDto>> GetHalaqaRankingInternalAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-days);
@@ -391,6 +435,17 @@ namespace KhairAPI.Services.Implementations
         }
 
         public async Task<List<TeacherRankingDto>> GetTeacherRankingAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
+        {
+            var cacheKey = ForParams(TeacherRanking, days, limit);
+            
+            return await _cache.GetOrCreateAsync(
+                cacheKey,
+                async () => await GetTeacherRankingInternalAsync(days, limit, halaqaFilter),
+                Medium,
+                size: 3);
+        }
+
+        private async Task<List<TeacherRankingDto>> GetTeacherRankingInternalAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-days);
@@ -464,6 +519,11 @@ namespace KhairAPI.Services.Implementations
         }
 
         public async Task<List<AtRiskStudentDto>> GetAtRiskStudentsAsync(int limit = 20, List<int>? halaqaFilter = null)
+        {
+            return await GetAtRiskStudentsInternalAsync(limit, halaqaFilter);
+        }
+
+        private async Task<List<AtRiskStudentDto>> GetAtRiskStudentsInternalAsync(int limit = 20, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-30);
@@ -723,8 +783,9 @@ namespace KhairAPI.Services.Implementations
         }
 
         /// <summary>
-        /// Gets the streak leaderboard showing students with longest consecutive progress days.
-        /// Streaks are calculated based on consecutive halaqa active days with progress records.
+        /// Gets the streak leaderboard showing students with longest consecutive target achievement days.
+        /// Streaks are calculated based on consecutive halaqa active days where the student met their assigned target.
+        /// Students without targets will have 0 streak.
         /// </summary>
         public async Task<StreakLeaderboardDto> GetStreakLeaderboardAsync(StreakLeaderboardFilterDto filter)
         {
@@ -793,39 +854,69 @@ namespace KhairAPI.Services.Implementations
                 filteredHalaqaName = studentAssignments.First().HalaqaName;
             }
 
-            // Batch load progress records for all students in scope (optimized single query)
-            // Only need date and studentId for streak calculation
-            var progressDates = await _context.ProgressRecords
+            // Get student targets (only students with targets can have streaks)
+            var studentTargets = await _context.StudentTargets
                 .AsNoTracking()
-                .Where(p => studentIds.Contains(p.StudentId) && p.Date >= lookbackDate && p.Date <= today)
-                .Select(p => new { p.StudentId, p.Date })
+                .Where(t => studentIds.Contains(t.StudentId))
+                .Select(t => new
+                {
+                    t.StudentId,
+                    t.MemorizationLinesTarget,
+                    t.RevisionPagesTarget,
+                    t.ConsolidationPagesTarget
+                })
                 .ToListAsync();
 
-            // Group progress by student, then create a HashSet of dates with progress for O(1) lookup
-            var progressByStudent = progressDates
+            var targetsByStudent = studentTargets.ToDictionary(t => t.StudentId);
+
+            // Batch load progress records for all students in scope
+            var progressRecords = await _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => studentIds.Contains(p.StudentId) && p.Date >= lookbackDate && p.Date <= today)
+                .Select(p => new { p.StudentId, p.Date, p.Type, p.NumberLines })
+                .ToListAsync();
+
+            const double LinesPerPage = 15.0;
+
+            // Group progress by student and date - optimized with single pass
+            var progressByStudentAndDate = progressRecords
                 .GroupBy(p => p.StudentId)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.Select(p => p.Date.Date).Distinct().ToHashSet()
+                    g => g.GroupBy(x => x.Date.Date)
+                         .ToDictionary(
+                             dateGroup => dateGroup.Key,
+                             dateGroup => new DailyProgressData
+                             {
+                                 MemorizationLines = dateGroup.Where(p => p.Type == ProgressType.Memorization).Sum(p => p.NumberLines),
+                                 RevisionLines = dateGroup.Where(p => p.Type == ProgressType.Revision).Sum(p => p.NumberLines),
+                                 ConsolidationLines = dateGroup.Where(p => p.Type == ProgressType.Consolidation).Sum(p => p.NumberLines)
+                             }
+                         )
+                );
+
+            // Pre-calculate active days for each halaqa to avoid repeated parsing
+            var activeDaysByHalaqa = studentAssignments
+                .GroupBy(s => s.HalaqaActiveDays)
+                .ToDictionary(
+                    g => g.Key ?? string.Empty,
+                    g => ParseActiveDays(g.Key).ToHashSet()
                 );
 
             // Calculate streaks for each student
-            var studentStreaks = new List<StudentStreakDto>();
+            var studentStreaks = new List<StudentStreakDto>(studentIds.Count);
 
             foreach (var studentId in studentIds)
             {
                 var assignment = studentLookup[studentId];
-                var activeDays = ParseActiveDays(assignment.HalaqaActiveDays);
-                var activeDaysSet = activeDays.ToHashSet();
+                
+                // Get cached active days for this halaqa
+                var activeDaysSet = activeDaysByHalaqa[assignment.HalaqaActiveDays ?? string.Empty];
 
-                // Get progress dates for this student
-                var progressDatesSet = progressByStudent.TryGetValue(studentId, out var dates)
-                    ? dates
-                    : new HashSet<DateTime>();
-
-                if (!progressDatesSet.Any())
+                // Check if student has targets
+                if (!targetsByStudent.TryGetValue(studentId, out var target))
                 {
-                    // No progress records, streak is 0
+                    // No target, no streak
                     studentStreaks.Add(new StudentStreakDto
                     {
                         StudentId = studentId,
@@ -840,9 +931,79 @@ namespace KhairAPI.Services.Implementations
                     continue;
                 }
 
-                // Calculate current streak and longest streak
-                var (currentStreak, longestStreak, isActive, lastProgressDate) = CalculateStreaks(
-                    progressDatesSet,
+                // Get progress for this student
+                if (!progressByStudentAndDate.TryGetValue(studentId, out var studentProgress))
+                {
+                    // Has target but no progress
+                    studentStreaks.Add(new StudentStreakDto
+                    {
+                        StudentId = studentId,
+                        StudentName = $"{assignment.StudentFirstName} {assignment.StudentLastName}",
+                        HalaqaId = assignment.HalaqaId,
+                        HalaqaName = assignment.HalaqaName,
+                        CurrentStreak = 0,
+                        LongestStreak = 0,
+                        IsStreakActive = false,
+                        LastProgressDate = null
+                    });
+                    continue;
+                }
+
+                // Pre-calculate target thresholds (avoid repeated division)
+                var memorizationThreshold = target.MemorizationLinesTarget ?? 0;
+                var revisionThreshold = target.RevisionPagesTarget.HasValue 
+                    ? target.RevisionPagesTarget.Value * LinesPerPage 
+                    : 0;
+                var consolidationThreshold = target.ConsolidationPagesTarget.HasValue 
+                    ? target.ConsolidationPagesTarget.Value * LinesPerPage 
+                    : 0;
+
+                // Build a set of dates where target was met
+                var targetMetDates = new HashSet<DateTime>(studentProgress.Count);
+                DateTime? lastTargetMetDate = null;
+
+                // No need to sort - just iterate through all dates
+                foreach (var (date, dayProgress) in studentProgress)
+                {
+                    // Check if target was met for this day (using pre-calculated thresholds)
+                    bool memorizationMet = !target.MemorizationLinesTarget.HasValue || 
+                                          dayProgress.MemorizationLines >= memorizationThreshold;
+                    bool revisionMet = !target.RevisionPagesTarget.HasValue || 
+                                      dayProgress.RevisionLines >= revisionThreshold;
+                    bool consolidationMet = !target.ConsolidationPagesTarget.HasValue || 
+                                           dayProgress.ConsolidationLines >= consolidationThreshold;
+
+                    // Target is met if ALL set targets are achieved
+                    if (memorizationMet && revisionMet && consolidationMet)
+                    {
+                        targetMetDates.Add(date);
+                        if (lastTargetMetDate == null || date > lastTargetMetDate)
+                        {
+                            lastTargetMetDate = date;
+                        }
+                    }
+                }
+
+                if (!targetMetDates.Any())
+                {
+                    // Has target but never met it
+                    studentStreaks.Add(new StudentStreakDto
+                    {
+                        StudentId = studentId,
+                        StudentName = $"{assignment.StudentFirstName} {assignment.StudentLastName}",
+                        HalaqaId = assignment.HalaqaId,
+                        HalaqaName = assignment.HalaqaName,
+                        CurrentStreak = 0,
+                        LongestStreak = 0,
+                        IsStreakActive = false,
+                        LastProgressDate = null
+                    });
+                    continue;
+                }
+
+                // Calculate current streak and longest streak based on target achievement
+                var (currentStreak, longestStreak, isActive) = CalculateTargetStreaks(
+                    targetMetDates,
                     activeDaysSet,
                     today,
                     assignment.EnrollmentDate.Date
@@ -857,15 +1018,19 @@ namespace KhairAPI.Services.Implementations
                     CurrentStreak = currentStreak,
                     LongestStreak = longestStreak,
                     IsStreakActive = isActive,
-                    LastProgressDate = lastProgressDate
+                    LastProgressDate = lastTargetMetDate
                 });
             }
 
-            // Sort by current streak (descending), then by longest streak, then by name
-            var rankedStudents = studentStreaks
+            // Sort and rank efficiently - only sort students with streaks > 0 for leaderboard
+            // Students with 0 streak are excluded from ranking but counted in stats
+            var studentsWithStreaks = studentStreaks.Where(s => s.CurrentStreak > 0).ToList();
+            
+            // Use more efficient sorting with capacity hint
+            var rankedStudents = studentsWithStreaks
                 .OrderByDescending(s => s.CurrentStreak)
                 .ThenByDescending(s => s.LongestStreak)
-                .ThenBy(s => s.StudentName)
+                .ThenBy(s => s.StudentName, StringComparer.Ordinal)
                 .Take(filter.Limit)
                 .Select((s, index) => { s.Rank = index + 1; return s; })
                 .ToList();
@@ -880,100 +1045,117 @@ namespace KhairAPI.Services.Implementations
         }
 
         /// <summary>
-        /// Calculates current streak and longest streak for a student.
-        /// A streak is consecutive halaqa active days with at least one progress record.
+        /// Calculates current streak and longest streak based on target achievement.
+        /// A streak is consecutive halaqa active days where the student met their assigned target.
+        /// Current streak counts backwards from the most recent active day with target met.
+        /// Streak is considered active if target was met today OR on the most recent active day.
         /// </summary>
-        private static (int currentStreak, int longestStreak, bool isActive, DateTime? lastProgressDate) CalculateStreaks(
-            HashSet<DateTime> progressDates,
+        private static (int currentStreak, int longestStreak, bool isActive) CalculateTargetStreaks(
+            HashSet<DateTime> targetMetDates,
             HashSet<int> activeDays,
             DateTime today,
             DateTime enrollmentDate)
         {
-            if (!progressDates.Any())
-                return (0, 0, false, null);
+            if (!targetMetDates.Any())
+                return (0, 0, false);
 
-            var lastProgressDate = progressDates.Max();
-            
-            // Sort progress dates in descending order for current streak calculation
-            var sortedDates = progressDates.OrderDescending().ToList();
+            var lastTargetMetDate = targetMetDates.Max();
 
-            // Calculate current streak (starting from today, going backwards)
+            // Calculate current streak: Start from the most recent active day with target met and count backwards
             int currentStreak = 0;
             bool isActive = false;
+            
+            // Find the most recent active day with target met
+            DateTime? streakStartDate = null;
             var checkDate = today;
             
-            // First, find the most recent active day (could be today or a past day)
-            while (checkDate >= enrollmentDate)
+            // First, find where the current streak starts (most recent active day with target met)
+            while (checkDate >= enrollmentDate && (today - checkDate).Days <= 365)
             {
                 if (activeDays.Contains((int)checkDate.DayOfWeek))
                 {
-                    // This is an active day
-                    if (progressDates.Contains(checkDate))
+                    if (targetMetDates.Contains(checkDate))
                     {
-                        // Has progress on this active day
-                        currentStreak++;
-                        if (checkDate == today || (checkDate == lastProgressDate && !activeDays.Contains((int)today.DayOfWeek)))
-                        {
-                            isActive = true;
-                        }
-                    }
-                    else
-                    {
-                        // No progress on this active day - streak broken (unless it's today)
-                        if (checkDate != today)
-                        {
-                            // Check if we've started counting - if not, try the previous active day
-                            if (currentStreak == 0)
-                            {
-                                checkDate = checkDate.AddDays(-1);
-                                continue;
-                            }
-                            break;
-                        }
+                        streakStartDate = checkDate;
+                        break;
                     }
                 }
                 checkDate = checkDate.AddDays(-1);
-                
-                // Safety limit to prevent infinite loops
-                if ((today - checkDate).Days > 400)
-                    break;
             }
 
-            // Calculate longest streak (scan all progress dates)
+            // If we found a streak start, count backwards from there
+            if (streakStartDate.HasValue)
+            {
+                // Determine if streak is active:
+                // - If target was met today, it's active
+                // - If today is not an active day, check if target was met on the most recent active day
+                if (lastTargetMetDate == today)
+                {
+                    isActive = true;
+                }
+                else if (!activeDays.Contains((int)today.DayOfWeek))
+                {
+                    // Today is not an active day, find the most recent active day
+                    var mostRecentActiveDay = today;
+                    while (mostRecentActiveDay >= enrollmentDate && (today - mostRecentActiveDay).Days <= 30)
+                    {
+                        if (activeDays.Contains((int)mostRecentActiveDay.DayOfWeek))
+                        {
+                            break;
+                        }
+                        mostRecentActiveDay = mostRecentActiveDay.AddDays(-1);
+                    }
+                    isActive = (lastTargetMetDate == mostRecentActiveDay);
+                }
+
+                // Count consecutive active days with target met backwards from streak start
+                checkDate = streakStartDate.Value;
+                while (checkDate >= enrollmentDate && (today - checkDate).Days <= 365)
+                {
+                    if (activeDays.Contains((int)checkDate.DayOfWeek))
+                    {
+                        if (targetMetDates.Contains(checkDate))
+                        {
+                            currentStreak++;
+                        }
+                        else
+                        {
+                            // Active day without target met - streak ends
+                            break;
+                        }
+                    }
+                    checkDate = checkDate.AddDays(-1);
+                }
+            }
+
+            // Calculate longest streak: Scan all dates from enrollment to today
             int longestStreak = 0;
             int tempStreak = 0;
-            var minDate = progressDates.Min();
-            var maxDate = progressDates.Max();
-
-            // Scan forward from first progress date
-            checkDate = minDate;
-            bool inStreak = false;
-
-            while (checkDate <= maxDate)
+            
+            checkDate = enrollmentDate;
+            while (checkDate <= today)
             {
                 if (activeDays.Contains((int)checkDate.DayOfWeek))
                 {
-                    // This is an active day
-                    if (progressDates.Contains(checkDate))
+                    if (targetMetDates.Contains(checkDate))
                     {
                         tempStreak++;
-                        inStreak = true;
                         longestStreak = Math.Max(longestStreak, tempStreak);
                     }
-                    else if (inStreak)
+                    else
                     {
-                        // Active day without progress - streak ends
+                        // Active day without target met - reset streak
                         tempStreak = 0;
-                        inStreak = false;
                     }
                 }
+                // Non-active days don't break the streak
                 checkDate = checkDate.AddDays(1);
             }
 
             // Ensure current streak doesn't exceed longest
             longestStreak = Math.Max(longestStreak, currentStreak);
 
-            return (currentStreak, longestStreak, isActive, lastProgressDate);
+            return (currentStreak, longestStreak, isActive);
         }
 
         public async Task<TargetAdoptionOverviewDto> GetTargetAdoptionOverviewAsync(TargetAdoptionFilterDto filter)

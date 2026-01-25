@@ -3,6 +3,7 @@ using KhairAPI.Data;
 using KhairAPI.Models.DTOs;
 using KhairAPI.Models.Entities;
 using KhairAPI.Services.Interfaces;
+using static KhairAPI.Core.Extensions.CacheKeys;
 
 namespace KhairAPI.Services.Implementations
 {
@@ -12,17 +13,20 @@ namespace KhairAPI.Services.Implementations
         private readonly IQuranService _quranService;
         private readonly ITenantService _tenantService;
         private readonly IQuranVerseLinesService _quranVerseLinesService;
+        private readonly ICacheService _cache;
 
         public ProgressService(
             AppDbContext context, 
             IQuranService quranService, 
             ITenantService tenantService,
-            IQuranVerseLinesService quranVerseLinesService)
+            IQuranVerseLinesService quranVerseLinesService,
+            ICacheService cache)
         {
             _context = context;
             _quranService = quranService;
             _tenantService = tenantService;
             _quranVerseLinesService = quranVerseLinesService;
+            _cache = cache;
         }
 
         public async Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto)
@@ -123,6 +127,8 @@ namespace KhairAPI.Services.Implementations
             }
 
             await _context.SaveChangesAsync();
+            
+            InvalidateStatisticsCache();
 
             var savedRecord = await _context.ProgressRecords
                 .Include(pr => pr.Student)
@@ -239,7 +245,19 @@ namespace KhairAPI.Services.Implementations
 
             _context.ProgressRecords.Remove(record);
             await _context.SaveChangesAsync();
+            
+            InvalidateStatisticsCache();
+            
             return true;
+        }
+
+        private void InvalidateStatisticsCache()
+        {
+            _cache.Remove(SystemWideStats);
+            _cache.RemoveByPrefix("supervisor_dashboard");
+            _cache.RemoveByPrefix("halaqa_ranking");
+            _cache.RemoveByPrefix("teacher_ranking");
+            _cache.RemoveByPrefix("dashboard_stats");
         }
 
         public async Task<ProgressRecordDto?> GetLastProgressByTypeAsync(int studentId, int type)

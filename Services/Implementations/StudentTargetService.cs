@@ -389,7 +389,9 @@ namespace KhairAPI.Services.Implementations
 
         /// <summary>
         /// Calculate current and best streaks from daily achievements.
-        /// Current streak counts from the most recent day backwards.
+        /// Current streak counts backwards from the most recent day where target was met.
+        /// A streak is consecutive days where the target was fully achieved.
+        /// Note: This counts calendar days, not halaqa active days (different from StatisticsService).
         /// </summary>
         private static (int CurrentStreak, int BestStreak) CalculateStreaks(List<TargetAchievementDto> achievements)
         {
@@ -398,17 +400,26 @@ namespace KhairAPI.Services.Implementations
             // Sort by date descending for current streak calculation
             var sorted = achievements.OrderByDescending(a => a.Date).ToList();
             
-            // Current streak: count from most recent day (or today) backwards
+            // Current streak: Find the most recent day with target met, then count backwards
             int currentStreak = 0;
+            bool foundFirstTargetMet = false;
+            
             foreach (var day in sorted)
             {
                 if (day.IsTargetMet)
+                {
+                    foundFirstTargetMet = true;
                     currentStreak++;
-                else
-                    break; // Streak broken
+                }
+                else if (foundFirstTargetMet)
+                {
+                    // Once we've started counting and hit a non-target day, streak is broken
+                    break;
+                }
+                // If we haven't found a target-met day yet, keep looking backwards
             }
 
-            // Best streak: find longest consecutive run
+            // Best streak: Find longest consecutive run of target-met days
             var sortedAsc = achievements.OrderBy(a => a.Date).ToList();
             int bestStreak = 0;
             int tempStreak = 0;
@@ -422,9 +433,13 @@ namespace KhairAPI.Services.Implementations
                 }
                 else
                 {
+                    // Target not met - reset streak
                     tempStreak = 0;
                 }
             }
+
+            // Ensure current streak doesn't exceed best streak
+            bestStreak = Math.Max(bestStreak, currentStreak);
 
             return (currentStreak, bestStreak);
         }

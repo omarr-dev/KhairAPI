@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using KhairAPI.Data;
 using KhairAPI.Core.Extensions;
+using static KhairAPI.Core.Extensions.CachingExtensions;
 using KhairAPI.Core.Middleware;
 using Microsoft.OpenApi.Models;
 using Hangfire;
@@ -112,6 +113,9 @@ builder.Services.AddCors(options =>
 
         // Add AutoMapper
         builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
+        // Add caching for scalability 
+        builder.Services.AddCachingServices();
 
         // Register all application services using extension method
         builder.Services.AddApplicationServices();
