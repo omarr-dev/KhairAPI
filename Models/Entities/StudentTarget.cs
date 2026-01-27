@@ -31,6 +31,21 @@ namespace KhairAPI.Models.Entities
         /// </summary>
         public int? ConsolidationPagesTarget { get; set; }
 
+        /// <summary>
+        /// Current consecutive days of meeting all set targets
+        /// </summary>
+        public int CurrentStreak { get; set; } = 0;
+
+        /// <summary>
+        /// Longest streak ever achieved 
+        /// </summary>
+        public int LongestStreak { get; set; } = 0;
+
+        /// <summary>
+        /// Date when the streak was last updated (for preventing duplicate updates same day)
+        /// </summary>
+        public DateTime? LastStreakDate { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

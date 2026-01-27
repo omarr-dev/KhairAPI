@@ -182,6 +182,16 @@ builder.Services.AddCors(options =>
                 TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time")
             });
 
+        // Schedule recurring job to reset streaks for missed targets daily at 23:59 KSA time
+        RecurringJob.AddOrUpdate<IAttendanceBackgroundService>(
+            "reset-streaks-for-missed-targets",
+            service => service.ResetStreaksForMissedTargetsAsync(null),
+            "59 23 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time")
+            });
+
         app.Run();
     }
 }

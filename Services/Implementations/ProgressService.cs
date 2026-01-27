@@ -127,7 +127,10 @@ namespace KhairAPI.Services.Implementations
             }
 
             await _context.SaveChangesAsync();
-            
+
+            // Update streak if target was met for today
+            await UpdateStreakOnProgressAsync(dto.StudentId, progressDate, dto.HalaqaId);
+
             InvalidateStatisticsCache();
 
             var savedRecord = await _context.ProgressRecords
@@ -326,6 +329,141 @@ namespace KhairAPI.Services.Implementations
                 NumberLines = record.NumberLines,
                 CreatedAt = record.CreatedAt
             };
+        }
+
+        /// <summary>
+        /// Updates streak when progress is recorded. Checks if all set targets are met for the day
+        /// and increments streak accordingly.
+        /// </summary>
+        private async Task UpdateStreakOnProgressAsync(int studentId, DateTime progressDate, int halaqaId)
+        {
+            // Get student's target
+            var studentTarget = await _context.StudentTargets
+                .FirstOrDefaultAsync(t => t.StudentId == studentId);
+
+            if (studentTarget == null)
+            {
+                // No target set - cannot have streak
+                return;
+            }
+
+            // Check if already counted today (prevent duplicate streak increments)
+            if (studentTarget.LastStreakDate.HasValue &&
+                studentTarget.LastStreakDate.Value.Date == progressDate.Date)
+            {
+                return;
+            }
+
+            // Get halaqa to check if today is an active day
+            var halaqa = await _context.Halaqat
+                .AsNoTracking()
+                .FirstOrDefaultAsync(h => h.Id == halaqaId);
+
+            if (halaqa == null)
+            {
+                return;
+            }
+
+            // Check if progress date is an active day for this halaqa
+            var activeDays = ParseActiveDays(halaqa.ActiveDays);
+            if (!activeDays.Contains((int)progressDate.DayOfWeek))
+            {
+                // Not an active day - don't update streak
+                return;
+            }
+
+            // Get all progress records for this student on this date
+            var dayProgress = await _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => p.StudentId == studentId && p.Date.Date == progressDate.Date)
+                .ToListAsync();
+
+            // Calculate total progress by type
+            const double LinesPerPage = 15.0;
+            var memorizationLines = dayProgress
+                .Where(p => p.Type == ProgressType.Memorization)
+                .Sum(p => p.NumberLines);
+            var revisionLines = dayProgress
+                .Where(p => p.Type == ProgressType.Revision)
+                .Sum(p => p.NumberLines);
+            var consolidationLines = dayProgress
+                .Where(p => p.Type == ProgressType.Consolidation)
+                .Sum(p => p.NumberLines);
+
+            // Check if all set targets are met
+            bool memorizationMet = !studentTarget.MemorizationLinesTarget.HasValue ||
+                                   memorizationLines >= studentTarget.MemorizationLinesTarget.Value;
+            bool revisionMet = !studentTarget.RevisionPagesTarget.HasValue ||
+                               revisionLines >= (studentTarget.RevisionPagesTarget.Value * LinesPerPage);
+            bool consolidationMet = !studentTarget.ConsolidationPagesTarget.HasValue ||
+                                    consolidationLines >= (studentTarget.ConsolidationPagesTarget.Value * LinesPerPage);
+
+            // At least one target must be set, and all set targets must be met
+            bool hasAnyTarget = studentTarget.MemorizationLinesTarget.HasValue ||
+                               studentTarget.RevisionPagesTarget.HasValue ||
+                               studentTarget.ConsolidationPagesTarget.HasValue;
+
+            if (!hasAnyTarget || !memorizationMet || !revisionMet || !consolidationMet)
+            {
+                // Target not met - don't update streak
+                return;
+            }
+
+            // Target met! Update streak
+            // Check if this continues a streak (last active day) or starts a new one
+            bool continuesStreak = false;
+
+            if (studentTarget.LastStreakDate.HasValue && studentTarget.CurrentStreak > 0)
+            {
+                // Find the previous active day
+                var checkDate = progressDate.AddDays(-1);
+                while (checkDate >= progressDate.AddDays(-7)) // Look back up to 7 days
+                {
+                    if (activeDays.Contains((int)checkDate.DayOfWeek))
+                    {
+                        // This was the last active day
+                        if (studentTarget.LastStreakDate.Value.Date == checkDate.Date)
+                        {
+                            continuesStreak = true;
+                        }
+                        break;
+                    }
+                    checkDate = checkDate.AddDays(-1);
+                }
+            }
+
+            if (continuesStreak)
+            {
+                studentTarget.CurrentStreak++;
+            }
+            else
+            {
+                // Start new streak
+                studentTarget.CurrentStreak = 1;
+            }
+
+            // Update longest streak if exceeded
+            if (studentTarget.CurrentStreak > studentTarget.LongestStreak)
+            {
+                studentTarget.LongestStreak = studentTarget.CurrentStreak;
+            }
+
+            studentTarget.LastStreakDate = progressDate;
+            studentTarget.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+        }
+
+        private static List<int> ParseActiveDays(string? activeDays)
+        {
+            if (string.IsNullOrWhiteSpace(activeDays))
+                return new List<int> { 0, 1, 2, 3, 4 }; // Default to Sun-Thu if not set
+
+            return activeDays
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(d => int.TryParse(d.Trim(), out var day) ? day : -1)
+                .Where(d => d >= 0 && d <= 6)
+                .ToList();
         }
     }
 }

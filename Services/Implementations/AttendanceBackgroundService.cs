@@ -127,6 +127,83 @@ namespace KhairAPI.Services.Implementations
                 .Where(d => d >= 0 && d <= 6)
                 .ToList();
         }
+
+        [DisableConcurrentExecution(timeoutInSeconds: 3600)]
+        [JobDisplayName("إعادة تعيين سلاسل الإنجاز")]
+        public async Task<int> ResetStreaksForMissedTargetsAsync(DateTime? date = null)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var targetDate = (date ?? DateTime.UtcNow).Date;
+            var dayOfWeek = (int)targetDate.DayOfWeek;
+            var totalReset = 0;
+
+            _logger.LogInformation("Processing streak resets for date: {Date}, DayOfWeek: {DayOfWeek}",
+                targetDate.ToString("yyyy-MM-dd"), dayOfWeek);
+
+            // 1. Get all active halaqat and filter those active today
+            var halaqat = await context.Halaqat
+                .Where(h => h.IsActive && h.ActiveDays != null)
+                .ToListAsync();
+
+            var activeHalaqatToday = halaqat
+                .Where(h => ParseActiveDays(h.ActiveDays).Contains(dayOfWeek))
+                .Select(h => h.Id)
+                .ToHashSet();
+
+            if (!activeHalaqatToday.Any())
+            {
+                _logger.LogInformation("No active halaqat for today: {Date}", targetDate.ToString("yyyy-MM-dd"));
+                return 0;
+            }
+
+            // 2. Get students in active halaqat today
+            var studentIdsInActiveHalaqat = await context.StudentHalaqat
+                .Where(sh => activeHalaqatToday.Contains(sh.HalaqaId) && sh.IsActive)
+                .Select(sh => sh.StudentId)
+                .Distinct()
+                .ToListAsync();
+
+            if (!studentIdsInActiveHalaqat.Any())
+            {
+                _logger.LogInformation("No students in active halaqat for {Date}", targetDate.ToString("yyyy-MM-dd"));
+                return 0;
+            }
+
+            var studentIdsSet = studentIdsInActiveHalaqat.ToHashSet();
+
+            // 3. Find StudentTargets where CurrentStreak > 0 AND LastStreakDate != today
+            // These are students who had a streak but didn't meet their target today
+            var targetsToReset = await context.StudentTargets
+                .Where(t => studentIdsSet.Contains(t.StudentId) &&
+                           t.CurrentStreak > 0 &&
+                           (t.LastStreakDate == null || t.LastStreakDate.Value.Date != targetDate))
+                .ToListAsync();
+
+            if (!targetsToReset.Any())
+            {
+                _logger.LogInformation("No streaks to reset for {Date}", targetDate.ToString("yyyy-MM-dd"));
+                return 0;
+            }
+
+            // 4. Reset streaks
+            foreach (var target in targetsToReset)
+            {
+                target.CurrentStreak = 0;
+                target.UpdatedAt = DateTime.UtcNow;
+                totalReset++;
+            }
+
+            if (totalReset > 0)
+            {
+                await context.SaveChangesAsync();
+                _logger.LogInformation("Reset {Count} streaks for {Date}",
+                    totalReset, targetDate.ToString("yyyy-MM-dd"));
+            }
+
+            return totalReset;
+        }
     }
 }
 

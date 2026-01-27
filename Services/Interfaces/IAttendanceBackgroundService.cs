@@ -10,6 +10,14 @@ namespace KhairAPI.Services.Interfaces
         /// <param name="date">The date to process. If null, uses the current date.</param>
         /// <returns>Number of absent records created</returns>
         Task<int> MarkAbsentForMissingAttendanceAsync(DateTime? date = null);
+
+        /// <summary>
+        /// Resets streaks for students who didn't meet their target on an active halaqa day.
+        /// Should run daily at end of day (23:59).
+        /// </summary>
+        /// <param name="date">The date to check. If null, uses the current date.</param>
+        /// <returns>Number of streaks reset</returns>
+        Task<int> ResetStreaksForMissedTargetsAsync(DateTime? date = null);
     }
 }
 
