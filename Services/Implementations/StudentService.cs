@@ -136,11 +136,31 @@ namespace KhairAPI.Services.Implementations
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
+                .Include(s => s.Target)
                 .AsSplitQuery()
                 .Where(s => s.StudentHalaqat.Any(sh => sh.TeacherId == teacherId && sh.IsActive))
                 .ToListAsync();
 
-            return students.Select(MapToDto);
+            // Get today's progress for all students in one query
+            var today = DateTime.UtcNow.Date;
+            var studentIds = students.Select(s => s.Id).ToList();
+
+            var todayProgress = await _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => studentIds.Contains(p.StudentId) && p.Date.Date == today)
+                .GroupBy(p => new { p.StudentId, p.Type })
+                .Select(g => new {
+                    StudentId = g.Key.StudentId,
+                    Type = g.Key.Type,
+                    TotalLines = g.Sum(p => p.NumberLines)
+                })
+                .ToListAsync();
+
+            var progressByStudent = todayProgress
+                .GroupBy(p => p.StudentId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            return students.Select(s => MapToDto(s, progressByStudent));
         }
 
         public async Task<StudentDto?> GetStudentByIdAsync(int id)
@@ -565,9 +585,41 @@ namespace KhairAPI.Services.Implementations
             return students.Select(MapToDto);
         }
 
-        private StudentDto MapToDto(Student student)
+        private StudentDto MapToDto(
+            Student student,
+            Dictionary<int, List<dynamic>>? todayProgressByStudent = null)
         {
             var activeAssignment = student.StudentHalaqat.FirstOrDefault(sh => sh.IsActive);
+
+            // Calculate today's achievement if progress data is provided
+            TodayAchievementDto? todayAchievement = null;
+            if (todayProgressByStudent != null && student.Target != null)
+            {
+                const double LinesPerPage = 15.0;
+                var hasAnyTarget = student.Target.MemorizationLinesTarget.HasValue ||
+                                  student.Target.RevisionPagesTarget.HasValue ||
+                                  student.Target.ConsolidationPagesTarget.HasValue;
+
+                if (hasAnyTarget)
+                {
+                    var progress = todayProgressByStudent.TryGetValue(student.Id, out var p) ? p : new List<dynamic>();
+
+                    var memLines = progress.FirstOrDefault(x => x.Type == ProgressType.Memorization)?.TotalLines ?? 0.0;
+                    var revLines = progress.FirstOrDefault(x => x.Type == ProgressType.Revision)?.TotalLines ?? 0.0;
+                    var conLines = progress.FirstOrDefault(x => x.Type == ProgressType.Consolidation)?.TotalLines ?? 0.0;
+
+                    todayAchievement = new TodayAchievementDto
+                    {
+                        HasTarget = true,
+                        MemorizationLinesTarget = student.Target.MemorizationLinesTarget,
+                        RevisionPagesTarget = student.Target.RevisionPagesTarget,
+                        ConsolidationPagesTarget = student.Target.ConsolidationPagesTarget,
+                        MemorizationLinesAchieved = (int)Math.Round(memLines),
+                        RevisionPagesAchieved = (int)Math.Ceiling(revLines / LinesPerPage),
+                        ConsolidationPagesAchieved = (int)Math.Ceiling(conLines / LinesPerPage)
+                    };
+                }
+            }
 
             return new StudentDto
             {
@@ -586,6 +638,9 @@ namespace KhairAPI.Services.Implementations
                 CurrentHalaqa = activeAssignment?.Halaqa?.Name,
                 TeacherName = activeAssignment?.Teacher?.FullName,
                 CreatedAt = student.CreatedAt,
+                CurrentStreak = student.Target?.CurrentStreak ?? 0,
+                LongestStreak = student.Target?.LongestStreak ?? 0,
+                TodayAchievement = todayAchievement,
                 Assignments = student.StudentHalaqat.Select(sh => new StudentAssignmentDto
                 {
                     StudentId = sh.StudentId,

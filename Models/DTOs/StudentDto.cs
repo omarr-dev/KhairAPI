@@ -28,6 +28,39 @@ namespace KhairAPI.Models.DTOs
         public string? TeacherName { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<StudentAssignmentDto> Assignments { get; set; } = new List<StudentAssignmentDto>();
+
+        // Streak tracking (from StudentTarget)
+        public int CurrentStreak { get; set; }
+        public int LongestStreak { get; set; }
+
+        // Today's achievement (optional - only if target is set)
+        public TodayAchievementDto? TodayAchievement { get; set; }
+    }
+
+    /// <summary>
+    /// Today's achievement progress vs target
+    /// </summary>
+    public class TodayAchievementDto
+    {
+        public bool HasTarget { get; set; }
+
+        // Targets
+        public int? MemorizationLinesTarget { get; set; }
+        public int? RevisionPagesTarget { get; set; }
+        public int? ConsolidationPagesTarget { get; set; }
+
+        // Achieved today
+        public int MemorizationLinesAchieved { get; set; }
+        public int RevisionPagesAchieved { get; set; }
+        public int ConsolidationPagesAchieved { get; set; }
+
+        // Percentages
+        public double MemorizationPercentage => MemorizationLinesTarget > 0
+            ? Math.Min(100, (double)MemorizationLinesAchieved / MemorizationLinesTarget.Value * 100) : 0;
+        public double RevisionPercentage => RevisionPagesTarget > 0
+            ? Math.Min(100, (double)RevisionPagesAchieved / RevisionPagesTarget.Value * 100) : 0;
+        public double ConsolidationPercentage => ConsolidationPagesTarget > 0
+            ? Math.Min(100, (double)ConsolidationPagesAchieved / ConsolidationPagesTarget.Value * 100) : 0;
     }
 
     public class StudentAssignmentDto

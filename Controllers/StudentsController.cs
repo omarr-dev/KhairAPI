@@ -411,43 +411,6 @@ namespace KhairAPI.Controllers
             }
         }
 
-        /// <summary>
-        /// Gets achievement history for all of the teacher's students in a single batch call.
-        /// Optimized for the "My Students" page to show streaks and achievements efficiently.
-        /// </summary>
-        [HttpGet("my-students/achievements")]
-        public async Task<IActionResult> GetMyStudentsAchievements(
-            [FromQuery] DateTime startDate,
-            [FromQuery] DateTime endDate,
-            [FromServices] IStudentTargetService targetService)
-        {
-            var teacherId = await _currentUserService.GetTeacherIdAsync();
-            if (!teacherId.HasValue)
-                return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
-
-            try
-            {
-                // Get all student IDs for this teacher
-                var students = await _studentService.GetStudentsByTeacherAsync(teacherId.Value);
-                var studentIds = students.Select(s => s.Id).ToList();
-
-                startDate = DateTime.SpecifyKind(startDate, DateTimeKind.Utc);
-                endDate = DateTime.SpecifyKind(endDate, DateTimeKind.Utc);
-
-                if (!studentIds.Any())
-                {
-                    return Ok(new Dictionary<int, AchievementHistoryDto>());
-                }
-
-                var achievements = await targetService.GetAchievementHistoryBatchAsync(studentIds, startDate, endDate);
-                return Ok(achievements);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
         #endregion
     }
 }

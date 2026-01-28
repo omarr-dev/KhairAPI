@@ -34,18 +34,5 @@ namespace KhairAPI.Services.Interfaces
         /// <param name="endDate">End date of the range (inclusive)</param>
         /// <returns>Achievement history with streak info, or null if no target set</returns>
         Task<AchievementHistoryDto?> GetAchievementHistoryAsync(int studentId, DateTime startDate, DateTime endDate);
-
-        /// <summary>
-        /// Gets achievement history for multiple students in a single batch call.
-        /// Optimized for the "My Students" page to show streaks for all students.
-        /// </summary>
-        /// <param name="studentIds">List of student IDs</param>
-        /// <param name="startDate">Start date of the range (inclusive)</param>
-        /// <param name="endDate">End date of the range (inclusive)</param>
-        /// <returns>Dictionary mapping student ID to their achievement history</returns>
-        Task<Dictionary<int, AchievementHistoryDto>> GetAchievementHistoryBatchAsync(
-            IEnumerable<int> studentIds, 
-            DateTime startDate, 
-            DateTime endDate);
     }
 }
