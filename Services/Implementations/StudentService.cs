@@ -6,6 +6,11 @@ using KhairAPI.Services.Interfaces;
 
 namespace KhairAPI.Services.Implementations
 {
+    /// <summary>
+    /// Internal record for today's progress aggregation
+    /// </summary>
+    internal record TodayProgressData(int StudentId, ProgressType Type, double TotalLines);
+
     public class StudentService : IStudentService
     {
         private readonly AppDbContext _context;
@@ -29,7 +34,7 @@ namespace KhairAPI.Services.Implementations
                 .AsSplitQuery()
                 .ToListAsync();
 
-            return students.Select(MapToDto);
+            return students.Select(s => MapToDto(s));
         }
 
         public async Task<PaginatedResponse<StudentDto>> GetStudentsPaginatedAsync(StudentFilterDto filter)
@@ -91,7 +96,7 @@ namespace KhairAPI.Services.Implementations
 
             return new PaginatedResponse<StudentDto>
             {
-                Items = students.Select(MapToDto).ToList(),
+                Items = students.Select(s => MapToDto(s)).ToList(),
                 TotalCount = totalCount,
                 Page = filter.Page,
                 PageSize = filter.PageSize
@@ -109,7 +114,7 @@ namespace KhairAPI.Services.Implementations
                 .Where(s => s.StudentHalaqat.Any(sh => sh.HalaqaId == halaqaId && sh.IsActive))
                 .ToListAsync();
 
-            return students.Select(MapToDto);
+            return students.Select(s => MapToDto(s));
         }
 
         public async Task<IEnumerable<StudentDto>> GetStudentsByHalaqasAsync(List<int> halaqaIds)
@@ -126,7 +131,7 @@ namespace KhairAPI.Services.Implementations
                 .Where(s => s.StudentHalaqat.Any(sh => halaqaIds.Contains(sh.HalaqaId) && sh.IsActive))
                 .ToListAsync();
 
-            return students.Select(MapToDto);
+            return students.Select(s => MapToDto(s));
         }
 
         public async Task<IEnumerable<StudentDto>> GetStudentsByTeacherAsync(int teacherId)
@@ -149,11 +154,11 @@ namespace KhairAPI.Services.Implementations
                 .AsNoTracking()
                 .Where(p => studentIds.Contains(p.StudentId) && p.Date.Date == today)
                 .GroupBy(p => new { p.StudentId, p.Type })
-                .Select(g => new {
-                    StudentId = g.Key.StudentId,
-                    Type = g.Key.Type,
-                    TotalLines = g.Sum(p => p.NumberLines)
-                })
+                .Select(g => new TodayProgressData(
+                    g.Key.StudentId,
+                    g.Key.Type,
+                    g.Sum(p => p.NumberLines)
+                ))
                 .ToListAsync();
 
             var progressByStudent = todayProgress
@@ -582,12 +587,12 @@ namespace KhairAPI.Services.Implementations
             }
 
             var students = await query.ToListAsync();
-            return students.Select(MapToDto);
+            return students.Select(s => MapToDto(s));
         }
 
         private StudentDto MapToDto(
             Student student,
-            Dictionary<int, List<dynamic>>? todayProgressByStudent = null)
+            Dictionary<int, List<TodayProgressData>>? todayProgressByStudent = null)
         {
             var activeAssignment = student.StudentHalaqat.FirstOrDefault(sh => sh.IsActive);
 
@@ -602,7 +607,7 @@ namespace KhairAPI.Services.Implementations
 
                 if (hasAnyTarget)
                 {
-                    var progress = todayProgressByStudent.TryGetValue(student.Id, out var p) ? p : new List<dynamic>();
+                    var progress = todayProgressByStudent.TryGetValue(student.Id, out var p) ? p : new List<TodayProgressData>();
 
                     var memLines = progress.FirstOrDefault(x => x.Type == ProgressType.Memorization)?.TotalLines ?? 0.0;
                     var revLines = progress.FirstOrDefault(x => x.Type == ProgressType.Revision)?.TotalLines ?? 0.0;
