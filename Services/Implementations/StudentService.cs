@@ -136,36 +136,110 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<IEnumerable<StudentDto>> GetStudentsByTeacherAsync(int teacherId)
         {
-            var students = await _context.Students
-                .Include(s => s.StudentHalaqat)
-                    .ThenInclude(sh => sh.Halaqa)
-                .Include(s => s.StudentHalaqat)
-                    .ThenInclude(sh => sh.Teacher)
-                .Include(s => s.Target)
-                .AsSplitQuery()
-                .Where(s => s.StudentHalaqat.Any(sh => sh.TeacherId == teacherId && sh.IsActive))
-                .ToListAsync();
+            // Use date range for proper SQL index utilization (avoid .Date property in query)
+            var todayStart = DateTime.UtcNow.Date;
+            var tomorrowStart = todayStart.AddDays(1);
 
-            // Get today's progress for all students in one query
-            var today = DateTime.UtcNow.Date;
-            var studentIds = students.Select(s => s.Id).ToList();
-
-            var todayProgress = await _context.ProgressRecords
+            // Single optimized query with projection - let EF Core handle the SQL generation
+            var results = await _context.StudentHalaqat
                 .AsNoTracking()
-                .Where(p => studentIds.Contains(p.StudentId) && p.Date.Date == today)
-                .GroupBy(p => new { p.StudentId, p.Type })
-                .Select(g => new TodayProgressData(
-                    g.Key.StudentId,
-                    g.Key.Type,
-                    g.Sum(p => p.NumberLines)
-                ))
+                .AsSplitQuery()
+                .Where(sh => sh.TeacherId == teacherId && sh.IsActive)
+                .Select(sh => new
+                {
+                    Student = sh.Student,
+                    Target = sh.Student.Target,
+                    Assignments = sh.Student.StudentHalaqat.Select(a => new
+                    {
+                        a.StudentId,
+                        a.HalaqaId,
+                        HalaqaName = a.Halaqa != null ? a.Halaqa.Name : "",
+                        a.TeacherId,
+                        TeacherName = a.Teacher != null ? a.Teacher.FullName : "",
+                        a.EnrollmentDate,
+                        a.IsActive
+                    }).ToList(),
+                    TodayProgress = sh.Student.ProgressRecords
+                        .Where(p => p.Date >= todayStart && p.Date < tomorrowStart)
+                        .GroupBy(p => p.Type)
+                        .Select(g => new { Type = g.Key, TotalLines = g.Sum(p => p.NumberLines) })
+                        .ToList()
+                })
                 .ToListAsync();
 
-            var progressByStudent = todayProgress
-                .GroupBy(p => p.StudentId)
-                .ToDictionary(g => g.Key, g => g.ToList());
+            if (results.Count == 0)
+                return Enumerable.Empty<StudentDto>();
 
-            return students.Select(s => MapToDto(s, progressByStudent));
+            const double LinesPerPage = 15.0;
+
+            return results.Select(r =>
+            {
+                var student = r.Student;
+                var target = r.Target;
+                var activeAssignment = r.Assignments.FirstOrDefault(a => a.IsActive);
+
+                // Build today's achievement only if target exists with any value set
+                TodayAchievementDto? todayAchievement = null;
+                if (target != null)
+                {
+                    var hasAnyTarget = target.MemorizationLinesTarget.HasValue ||
+                                      target.RevisionPagesTarget.HasValue ||
+                                      target.ConsolidationPagesTarget.HasValue;
+
+                    if (hasAnyTarget)
+                    {
+                        var memLines = r.TodayProgress
+                            .FirstOrDefault(p => p.Type == ProgressType.Memorization)?.TotalLines ?? 0.0;
+                        var revLines = r.TodayProgress
+                            .FirstOrDefault(p => p.Type == ProgressType.Revision)?.TotalLines ?? 0.0;
+                        var conLines = r.TodayProgress
+                            .FirstOrDefault(p => p.Type == ProgressType.Consolidation)?.TotalLines ?? 0.0;
+
+                        todayAchievement = new TodayAchievementDto
+                        {
+                            HasTarget = true,
+                            MemorizationLinesTarget = target.MemorizationLinesTarget,
+                            RevisionPagesTarget = target.RevisionPagesTarget,
+                            ConsolidationPagesTarget = target.ConsolidationPagesTarget,
+                            MemorizationLinesAchieved = (int)Math.Round(memLines),
+                            RevisionPagesAchieved = revLines > 0 ? (int)Math.Ceiling(revLines / LinesPerPage) : 0,
+                            ConsolidationPagesAchieved = conLines > 0 ? (int)Math.Ceiling(conLines / LinesPerPage) : 0
+                        };
+                    }
+                }
+
+                return new StudentDto
+                {
+                    Id = student.Id,
+                    FirstName = student.FirstName,
+                    LastName = student.LastName,
+                    DateOfBirth = student.DateOfBirth,
+                    GuardianName = student.GuardianName,
+                    GuardianPhone = student.GuardianPhone,
+                    Phone = student.Phone,
+                    IdNumber = student.IdNumber,
+                    MemorizationDirection = student.MemorizationDirection.ToString(),
+                    CurrentSurahNumber = student.CurrentSurahNumber,
+                    CurrentVerse = student.CurrentVerse,
+                    JuzMemorized = student.JuzMemorized,
+                    CurrentHalaqa = activeAssignment?.HalaqaName,
+                    TeacherName = activeAssignment?.TeacherName,
+                    CreatedAt = student.CreatedAt,
+                    CurrentStreak = target?.CurrentStreak ?? 0,
+                    LongestStreak = target?.LongestStreak ?? 0,
+                    TodayAchievement = todayAchievement,
+                    Assignments = r.Assignments.Select(a => new StudentAssignmentDto
+                    {
+                        StudentId = a.StudentId,
+                        HalaqaId = a.HalaqaId,
+                        HalaqaName = a.HalaqaName,
+                        TeacherId = a.TeacherId,
+                        TeacherName = a.TeacherName,
+                        EnrollmentDate = a.EnrollmentDate,
+                        IsActive = a.IsActive
+                    }).ToList()
+                };
+            });
         }
 
         public async Task<StudentDto?> GetStudentByIdAsync(int id)
