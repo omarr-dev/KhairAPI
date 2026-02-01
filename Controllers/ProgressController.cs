@@ -29,7 +29,7 @@ namespace KhairAPI.Controllers
                 if (!teacherId.HasValue || teacherId.Value != dto.TeacherId)
                     return Forbid();
             }
-            
+
             // HalaqaSupervisors can only create progress in their assigned halaqas
             if (_currentUserService.IsHalaqaSupervisor)
             {
@@ -38,7 +38,9 @@ namespace KhairAPI.Controllers
                     return Forbid();
             }
 
-            var record = await _progressService.CreateProgressRecordAsync(dto);
+            // For supervisors, allow recording progress (service will find the correct teacher)
+            bool isSupervisor = _currentUserService.IsSupervisor || _currentUserService.IsHalaqaSupervisor;
+            var record = await _progressService.CreateProgressRecordAsync(dto, isSupervisor);
             return CreatedAtAction(nameof(GetDailyProgress), new { date = record.Date }, record);
         }
 

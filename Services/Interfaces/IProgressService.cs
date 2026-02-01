@@ -4,7 +4,7 @@ namespace KhairAPI.Services.Interfaces
 {
     public interface IProgressService
     {
-        Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto);
+        Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto, bool isSupervisorRecording = false);
         Task<IEnumerable<ProgressRecordDto>> GetProgressByDateAsync(DateTime date, int? teacherId = null, List<int>? halaqaFilter = null);
         Task<IEnumerable<ProgressRecordDto>> GetProgressByStudentAsync(int studentId, DateTime? fromDate = null);
         Task<DailyProgressSummaryDto> GetDailyProgressSummaryAsync(DateTime date, int? teacherId = null, List<int>? halaqaFilter = null);

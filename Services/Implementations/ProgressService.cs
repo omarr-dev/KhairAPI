@@ -29,24 +29,45 @@ namespace KhairAPI.Services.Implementations
             _cache = cache;
         }
 
-        public async Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto)
+        public async Task<ProgressRecordDto> CreateProgressRecordAsync(CreateProgressRecordDto dto, bool isSupervisorRecording = false)
         {
             if (_tenantService.CurrentAssociationId == null)
             {
                 throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
             }
 
-            var studentAssignment = await _context.StudentHalaqat
-                .OrderBy(sh => sh.StudentId).ThenBy(sh => sh.HalaqaId).ThenBy(sh => sh.TeacherId)
-                .FirstOrDefaultAsync(sh =>
-                    sh.StudentId == dto.StudentId &&
-                    sh.HalaqaId == dto.HalaqaId &&
-                    sh.TeacherId == dto.TeacherId &&
-                    sh.IsActive);
+            StudentHalaqa? studentAssignment;
+
+            if (isSupervisorRecording)
+            {
+                // For supervisors, find the student's actual teacher in this halaqa
+                studentAssignment = await _context.StudentHalaqat
+                    .OrderBy(sh => sh.StudentId).ThenBy(sh => sh.HalaqaId).ThenBy(sh => sh.TeacherId)
+                    .FirstOrDefaultAsync(sh =>
+                        sh.StudentId == dto.StudentId &&
+                        sh.HalaqaId == dto.HalaqaId &&
+                        sh.IsActive);
+
+                if (studentAssignment != null)
+                {
+                    // Update dto with the actual teacher ID
+                    dto.TeacherId = studentAssignment.TeacherId;
+                }
+            }
+            else
+            {
+                studentAssignment = await _context.StudentHalaqat
+                    .OrderBy(sh => sh.StudentId).ThenBy(sh => sh.HalaqaId).ThenBy(sh => sh.TeacherId)
+                    .FirstOrDefaultAsync(sh =>
+                        sh.StudentId == dto.StudentId &&
+                        sh.HalaqaId == dto.HalaqaId &&
+                        sh.TeacherId == dto.TeacherId &&
+                        sh.IsActive);
+            }
 
             if (studentAssignment == null)
             {
-                throw new InvalidOperationException("الطالب غير مسجل في هذه الحلقة مع هذا المعلم");
+                throw new InvalidOperationException("الطالب غير مسجل في هذه الحلقة");
             }
 
             var student = await _context.Students.FindAsync(dto.StudentId);
