@@ -54,9 +54,10 @@ namespace KhairAPI.Services.Implementations
             // 3. Find students in these halaqat who don't have an attendance record for target date
             // Using a single query to find missing attendance records to avoid N+1 issues
             var studentsMissingAttendance = await context.StudentHalaqat
+                .Include(sh => sh.Student)
                 .Where(sh => targetHalaqaIds.Contains(sh.HalaqaId) && sh.IsActive)
                 .Where(sh => !context.Attendances.Any(a => a.Date == targetDate && a.StudentId == sh.StudentId))
-                .Select(sh => new { sh.StudentId, sh.HalaqaId })
+                .Select(sh => new { sh.StudentId, sh.HalaqaId, sh.Student.AssociationId })
                 .ToListAsync();
 
             if (!studentsMissingAttendance.Any())
@@ -81,7 +82,8 @@ namespace KhairAPI.Services.Implementations
                     Date = targetDate,
                     Status = AttendanceStatus.Absent,
                     Notes = "تم التسجيل تلقائياً - غياب",
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AssociationId = record.AssociationId
                 };
 
                 context.Attendances.Add(attendance);
