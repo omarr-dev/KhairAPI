@@ -323,6 +323,7 @@ namespace KhairAPI.Services.Implementations
                 Id = record.Id,
                 StudentId = record.StudentId,
                 StudentName = record.Student != null ? $"{record.Student.FirstName} {record.Student.LastName}" : "",
+                StudentMemorizationDirection = record.Student?.MemorizationDirection.ToString() ?? "Forward",
                 TeacherId = record.TeacherId,
                 TeacherName = record.Teacher?.FullName ?? "",
                 HalaqaId = record.HalaqaId,

@@ -9,6 +9,7 @@ namespace KhairAPI.Models.DTOs
         public int Id { get; set; }
         public int StudentId { get; set; }
         public string StudentName { get; set; } = string.Empty;
+        public string StudentMemorizationDirection { get; set; } = string.Empty; // Forward/Backward
         public int? TeacherId { get; set; }
         public string? TeacherName { get; set; }
         public int HalaqaId { get; set; }
@@ -28,6 +29,7 @@ namespace KhairAPI.Models.DTOs
         
         public DateTime CreatedAt { get; set; }
     }
+
 
     public class CreateProgressRecordDto
     {
