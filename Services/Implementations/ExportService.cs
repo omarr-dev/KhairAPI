@@ -133,7 +133,7 @@ namespace KhairAPI.Services.Implementations
             return stream.ToArray();
         }
 
-        public async Task<byte[]> ExportAttendanceReportToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null)
+        public async Task<byte[]> ExportAttendanceReportToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null, int? teacherId = null)
         {
             var query = _context.Attendances
                 .Include(a => a.Student)
@@ -144,6 +144,15 @@ namespace KhairAPI.Services.Implementations
             if (halaqaIds != null && halaqaIds.Any())
             {
                 query = query.Where(a => halaqaIds.Contains(a.HalaqaId));
+            }
+
+            if (teacherId.HasValue)
+            {
+                var teacherStudentIds = await _context.StudentHalaqat
+                    .Where(sh => sh.TeacherId == teacherId && sh.IsActive)
+                    .Select(sh => sh.StudentId)
+                    .ToListAsync();
+                query = query.Where(a => teacherStudentIds.Contains(a.StudentId));
             }
 
             var attendances = await query.OrderBy(a => a.Date).ThenBy(a => a.Student.FirstName).ToListAsync();
@@ -300,7 +309,7 @@ namespace KhairAPI.Services.Implementations
             return stream.ToArray();
         }
 
-        public async Task<byte[]> ExportTeacherPerformanceToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null)
+        public async Task<byte[]> ExportTeacherPerformanceToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null, int? teacherId = null)
         {
             var teachersQuery = _context.Teachers
                 .Include(t => t.StudentHalaqat)
@@ -309,6 +318,11 @@ namespace KhairAPI.Services.Implementations
             if (halaqaIds != null && halaqaIds.Any())
             {
                 teachersQuery = teachersQuery.Where(t => t.HalaqaTeachers.Any(ht => halaqaIds.Contains(ht.HalaqaId)));
+            }
+
+            if (teacherId.HasValue)
+            {
+                teachersQuery = teachersQuery.Where(t => t.Id == teacherId.Value);
             }
 
             var teachers = await teachersQuery.ToListAsync();
@@ -392,11 +406,11 @@ namespace KhairAPI.Services.Implementations
             return stream.ToArray();
         }
 
-        public async Task<byte[]> ExportTeacherAttendanceReportAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null)
+        public async Task<byte[]> ExportTeacherAttendanceReportAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null, int? teacherId = null)
         {
             var startDate = DateTime.SpecifyKind(fromDate, DateTimeKind.Utc);
             var endDate = DateTime.SpecifyKind(toDate, DateTimeKind.Utc);
-            
+
             // To make percentage accurate, expected days should not exceed today
             var today = DateTime.UtcNow.Date;
             var effectiveEndDate = endDate.Date > today ? today.AddDays(1).AddSeconds(-1) : endDate;
@@ -410,6 +424,11 @@ namespace KhairAPI.Services.Implementations
             if (halaqaIds != null && halaqaIds.Any())
             {
                 teachersQuery = teachersQuery.Where(t => t.HalaqaTeachers.Any(ht => halaqaIds.Contains(ht.HalaqaId)));
+            }
+
+            if (teacherId.HasValue)
+            {
+                teachersQuery = teachersQuery.Where(t => t.Id == teacherId.Value);
             }
 
             var teachers = await teachersQuery.OrderBy(t => t.FullName).ToListAsync();

@@ -67,13 +67,14 @@ namespace KhairAPI.Controllers
         public async Task<IActionResult> ExportAttendance(
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null,
-            [FromQuery] int? halaqaId = null)
+            [FromQuery] int? halaqaId = null,
+            [FromQuery] int? teacherId = null)
         {
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
-            
+
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
-            var bytes = await _exportService.ExportAttendanceReportToExcelAsync(from, to, halaqaIds);
+            var bytes = await _exportService.ExportAttendanceReportToExcelAsync(from, to, halaqaIds, teacherId);
             var fileName = $"attendance_report_{from:yyyyMMdd}_to_{to:yyyyMMdd}.xlsx";
             return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
@@ -99,13 +100,14 @@ namespace KhairAPI.Controllers
         public async Task<IActionResult> ExportTeacherPerformance(
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null,
-            [FromQuery] int? halaqaId = null)
+            [FromQuery] int? halaqaId = null,
+            [FromQuery] int? teacherId = null)
         {
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
 
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
-            var bytes = await _exportService.ExportTeacherPerformanceToExcelAsync(from, to, halaqaIds);
+            var bytes = await _exportService.ExportTeacherPerformanceToExcelAsync(from, to, halaqaIds, teacherId);
             var fileName = $"teacher_performance_{from:yyyyMMdd}_to_{to:yyyyMMdd}.xlsx";
             return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
@@ -115,13 +117,14 @@ namespace KhairAPI.Controllers
         public async Task<IActionResult> ExportTeacherAttendance(
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null,
-            [FromQuery] int? halaqaId = null)
+            [FromQuery] int? halaqaId = null,
+            [FromQuery] int? teacherId = null)
         {
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
 
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
-            var bytes = await _exportService.ExportTeacherAttendanceReportAsync(from, to, halaqaIds);
+            var bytes = await _exportService.ExportTeacherAttendanceReportAsync(from, to, halaqaIds, teacherId);
             var fileName = $"teacher_attendance_{from:yyyyMMdd}_to_{to:yyyyMMdd}.xlsx";
             return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }

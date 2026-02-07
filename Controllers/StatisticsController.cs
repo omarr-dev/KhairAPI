@@ -46,16 +46,18 @@ namespace KhairAPI.Controllers
         public async Task<IActionResult> GetReportStats(
             [FromQuery] string dateRange = "week",
             [FromQuery] int? halaqaId = null,
+            [FromQuery] int? teacherId = null,
             [FromQuery] string? fromDate = null,
             [FromQuery] string? toDate = null)
         {
-            int? teacherId = null;
+            int? effectiveTeacherId = teacherId;
             List<int>? supervisedHalaqaIds = null;
 
             if (_currentUserService.IsTeacher)
             {
-                teacherId = await _currentUserService.GetTeacherIdAsync();
-                if (!teacherId.HasValue)
+                // Teachers can only see their own data
+                effectiveTeacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!effectiveTeacherId.HasValue)
                     return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
             }
             else if (_currentUserService.IsHalaqaSupervisor)
@@ -66,6 +68,7 @@ namespace KhairAPI.Controllers
                 {
                     return Forbid();
                 }
+                // Supervisors can use the teacherId filter passed from frontend
             }
 
             // Validate custom date range if provided
@@ -119,9 +122,9 @@ namespace KhairAPI.Controllers
             }
 
             var stats = await _statisticsService.GetReportStatsAsync(
-                dateRange, 
-                halaqaId, 
-                teacherId, 
+                dateRange,
+                halaqaId,
+                effectiveTeacherId,
                 supervisedHalaqaIds,
                 parsedFromDate,
                 parsedToDate);
