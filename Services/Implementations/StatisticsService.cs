@@ -804,6 +804,12 @@ namespace KhairAPI.Services.Implementations
                 studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.HalaqaId == filter.SelectedHalaqaId);
             }
 
+            // Further filter by selected teacher if provided (for supervisors)
+            if (filter.SelectedTeacherId.HasValue)
+            {
+                studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.TeacherId == filter.SelectedTeacherId);
+            }
+
             // Get student info with their halaqa details (single query with projection)
             var studentAssignments = await studentHalaqaQuery
                 .Select(sh => new
@@ -977,6 +983,12 @@ namespace KhairAPI.Services.Implementations
             if (filter.SelectedHalaqaId.HasValue)
             {
                 studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.HalaqaId == filter.SelectedHalaqaId);
+            }
+
+            // Further filter by selected teacher if provided (for supervisors)
+            if (filter.SelectedTeacherId.HasValue)
+            {
+                studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.TeacherId == filter.SelectedTeacherId);
             }
 
             // Get student IDs in scope with their halaqa and teacher info (single query)
@@ -1155,6 +1167,12 @@ namespace KhairAPI.Services.Implementations
             if (filter.SelectedHalaqaId.HasValue)
             {
                 studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.HalaqaId == filter.SelectedHalaqaId);
+            }
+
+            // Further filter by selected teacher if provided (for supervisors)
+            if (filter.SelectedTeacherId.HasValue)
+            {
+                studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.TeacherId == filter.SelectedTeacherId);
             }
 
             // Get distinct student IDs in scope (single query)

@@ -82,11 +82,36 @@ namespace KhairAPI.Services.Implementations
                 throw new InvalidOperationException("السورة غير موجودة");
             }
 
-            // Calculate lines using the accurate Mushaf line data
-            var numberOfLines = _quranVerseLinesService.CalculateLines(
-                surah.Number, 
-                dto.FromVerse, 
-                dto.ToVerse);
+            // Set ToSurahName to SurahName if not provided (single-surah recording)
+            var toSurahName = dto.ToSurahName ?? dto.SurahName;
+            var toSurah = _quranService.GetSurahByName(toSurahName);
+            if (toSurah == null)
+            {
+                throw new InvalidOperationException("السورة النهائية غير موجودة");
+            }
+
+            // Validate direction for multi-surah recording
+            ValidateProgressDirection(student.MemorizationDirection, surah.Number, toSurah.Number, dto.FromVerse, dto.ToVerse);
+
+            // Calculate lines - handle both single and multi-surah
+            double numberOfLines;
+            if (surah.Number == toSurah.Number)
+            {
+                // Single surah
+                numberOfLines = _quranVerseLinesService.CalculateLines(
+                    surah.Number, 
+                    dto.FromVerse, 
+                    dto.ToVerse);
+            }
+            else
+            {
+                // Multi-surah: calculate across surahs
+                numberOfLines = CalculateMultiSurahLines(
+                    surah.Number, 
+                    dto.FromVerse, 
+                    toSurah.Number, 
+                    dto.ToVerse);
+            }
 
             var progressRecord = new ProgressRecord
             {
@@ -96,6 +121,7 @@ namespace KhairAPI.Services.Implementations
                 Date = DateTime.SpecifyKind(dto.Date.Date, DateTimeKind.Utc),
                 Type = dto.Type,
                 SurahName = dto.SurahName,
+                ToSurahName = toSurahName != dto.SurahName ? toSurahName : null,
                 FromVerse = dto.FromVerse,
                 ToVerse = dto.ToVerse,
                 Quality = dto.Quality,
@@ -109,9 +135,10 @@ namespace KhairAPI.Services.Implementations
 
             if (dto.Type == ProgressType.Memorization)
             {
+                // For multi-surah, use the ending surah and verse
                 var (nextSurah, nextVerse) = _quranService.GetNextPosition(
                     student.MemorizationDirection,
-                    surah.Number,
+                    toSurah.Number,
                     dto.ToVerse
                 );
 
@@ -337,6 +364,7 @@ namespace KhairAPI.Services.Implementations
                     _ => "غير محدد"
                 },
                 SurahName = record.SurahName,
+                ToSurahName = record.ToSurahName,
                 FromVerse = record.FromVerse,
                 ToVerse = record.ToVerse,
                 Quality = record.Quality switch
@@ -486,6 +514,100 @@ namespace KhairAPI.Services.Implementations
                 .Select(d => int.TryParse(d.Trim(), out var day) ? day : -1)
                 .Where(d => d >= 0 && d <= 6)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Validates that the progress recording respects the student's memorization direction.
+        /// </summary>
+        private void ValidateProgressDirection(
+            MemorizationDirection direction, 
+            int fromSurahNumber, 
+            int toSurahNumber,
+            int fromVerse,
+            int toVerse)
+        {
+            // Same surah: always valid, just check verses
+            if (fromSurahNumber == toSurahNumber)
+            {
+                if (toVerse < fromVerse)
+                {
+                    throw new InvalidOperationException("آية النهاية يجب أن تكون بعد أو تساوي آية البداية");
+                }
+                return;
+            }
+
+            // Multi-surah: check direction
+            if (direction == MemorizationDirection.Forward)
+            {
+                if (toSurahNumber < fromSurahNumber)
+                {
+                    throw new InvalidOperationException(
+                        "اتجاه الحفظ للطالب تنازلي (من الفاتحة للناس). يجب أن تكون السورة النهائية بعد أو تساوي السورة البدائية");
+                }
+            }
+            else // Backward
+            {
+                if (toSurahNumber > fromSurahNumber)
+                {
+                    throw new InvalidOperationException(
+                        "اتجاه الحفظ للطالب تصاعدي (من الناس للفاتحة). يجب أن تكون السورة النهائية قبل أو تساوي السورة البدائية");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Calculates total Mushaf lines for progress spanning multiple surahs.
+        /// </summary>
+        private double CalculateMultiSurahLines(
+            int fromSurahNumber, 
+            int fromVerse, 
+            int toSurahNumber, 
+            int toVerse)
+        {
+            double totalLines = 0;
+
+            // Determine direction
+            bool isForward = toSurahNumber > fromSurahNumber;
+            int step = isForward ? 1 : -1;
+            int currentSurah = fromSurahNumber;
+
+            while (currentSurah != toSurahNumber + step)
+            {
+                var surahInfo = _quranService.GetSurahByNumber(currentSurah);
+                if (surahInfo == null)
+                {
+                    throw new InvalidOperationException($"السورة رقم {currentSurah} غير موجودة");
+                }
+
+                if (currentSurah == fromSurahNumber)
+                {
+                    // First surah: from fromVerse to end
+                    totalLines += _quranVerseLinesService.CalculateLines(
+                        currentSurah, 
+                        fromVerse, 
+                        surahInfo.VerseCount);
+                }
+                else if (currentSurah == toSurahNumber)
+                {
+                    // Last surah: from start to toVerse
+                    totalLines += _quranVerseLinesService.CalculateLines(
+                        currentSurah, 
+                        1, 
+                        toVerse);
+                }
+                else
+                {
+                    // Middle surahs: entire surah
+                    totalLines += _quranVerseLinesService.CalculateLines(
+                        currentSurah, 
+                        1, 
+                        surahInfo.VerseCount);
+                }
+
+                currentSurah += step;
+            }
+
+            return totalLines;
         }
     }
 }

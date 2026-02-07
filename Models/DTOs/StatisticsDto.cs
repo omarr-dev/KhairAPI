@@ -223,6 +223,7 @@ namespace KhairAPI.Models.DTOs
         public int? TeacherId { get; set; }
         public List<int>? SupervisedHalaqaIds { get; set; }
         public int? SelectedHalaqaId { get; set; }
+        public int? SelectedTeacherId { get; set; }
         public bool IncludeHalaqaBreakdown { get; set; }
     }
 
@@ -348,6 +349,7 @@ namespace KhairAPI.Models.DTOs
         public int? TeacherId { get; set; }
         public List<int>? SupervisedHalaqaIds { get; set; }
         public int? SelectedHalaqaId { get; set; }
+        public int? SelectedTeacherId { get; set; }
         public DateTime FromDate { get; set; }
         public DateTime ToDate { get; set; }
     }
@@ -452,6 +454,11 @@ namespace KhairAPI.Models.DTOs
         /// Optional: Filter to a specific halaqa
         /// </summary>
         public int? SelectedHalaqaId { get; set; }
+
+        /// <summary>
+        /// Optional: Filter to a specific teacher (for supervisors)
+        /// </summary>
+        public int? SelectedTeacherId { get; set; }
 
         /// <summary>
         /// Number of top students to return (default: 10)

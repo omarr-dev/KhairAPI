@@ -24,6 +24,12 @@ namespace KhairAPI.Models.Entities
         [Required]
         public string SurahName { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Optional ending surah for multi-surah progress recording.
+        /// If null, defaults to SurahName (single-surah recording).
+        /// </summary>
+        public string? ToSurahName { get; set; }
+
         [Required]
         public int FromVerse { get; set; }
 

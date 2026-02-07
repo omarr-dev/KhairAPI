@@ -17,6 +17,7 @@ namespace KhairAPI.Models.DTOs
         public DateTime Date { get; set; }
         public string Type { get; set; } = string.Empty; // حفظ/مراجعة
         public string SurahName { get; set; } = string.Empty;
+        public string? ToSurahName { get; set; }
         public int FromVerse { get; set; }
         public int ToVerse { get; set; }
         public string Quality { get; set; } = string.Empty; // ممتاز/جيد جداً/جيد/مقبول
@@ -50,6 +51,11 @@ namespace KhairAPI.Models.DTOs
 
         [Required(ErrorMessage = "اسم السورة مطلوب")]
         public string SurahName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Optional ending surah for multi-surah recording. If not provided, defaults to SurahName.
+        /// </summary>
+        public string? ToSurahName { get; set; }
 
         [Required(ErrorMessage = "آية البداية مطلوبة")]
         [Range(1, int.MaxValue, ErrorMessage = "آية البداية يجب أن تكون أكبر من صفر")]

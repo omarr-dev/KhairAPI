@@ -225,24 +225,28 @@ namespace KhairAPI.Controllers
         /// <summary>
         /// Gets target adoption overview statistics.
         /// تغطية نظام الأهداف
-        /// 
+        ///
         /// - Teachers: See target coverage for their students only
         /// - HalaqaSupervisors: See target coverage for their assigned halaqat
         /// - Supervisors: See target coverage for all students
-        /// 
+        ///
         /// Optional: Filter by specific halaqa (validated for access)
+        /// Optional: Filter by specific teacher (for supervisors)
         /// Optional: Include per-halaqa breakdown
         /// </summary>
         /// <param name="halaqaId">Optional: Filter to a specific halaqa</param>
+        /// <param name="teacherId">Optional: Filter to a specific teacher (for supervisors)</param>
         /// <param name="includeBreakdown">Include per-halaqa breakdown (default: false)</param>
         [HttpGet("target-adoption-overview")]
         public async Task<IActionResult> GetTargetAdoptionOverview(
             [FromQuery] int? halaqaId = null,
+            [FromQuery] int? teacherId = null,
             [FromQuery] bool includeBreakdown = false)
         {
             var filter = new TargetAdoptionFilterDto
             {
                 SelectedHalaqaId = halaqaId,
+                SelectedTeacherId = teacherId,
                 IncludeHalaqaBreakdown = includeBreakdown
             };
 
@@ -281,19 +285,21 @@ namespace KhairAPI.Controllers
         /// <summary>
         /// Gets daily achievement statistics showing aggregated progress vs targets.
         /// إنجاز اليوم - إحصائيات الإنجاز اليومي المجمّعة
-        /// 
+        ///
         /// - Teachers: See aggregated achievements for their students only
         /// - HalaqaSupervisors: See aggregated achievements for their assigned halaqat
-        /// - Supervisors: See aggregated achievements for all students or filter by halaqa
-        /// 
+        /// - Supervisors: See aggregated achievements for all students or filter by halaqa/teacher
+        ///
         /// Default date range: today + last 7 days
         /// </summary>
         /// <param name="halaqaId">Optional: Filter to a specific halaqa</param>
+        /// <param name="teacherId">Optional: Filter to a specific teacher (for supervisors)</param>
         /// <param name="fromDate">Optional: Start date (default: 7 days ago)</param>
         /// <param name="toDate">Optional: End date (default: today)</param>
         [HttpGet("daily-achievement")]
         public async Task<IActionResult> GetDailyAchievementStats(
             [FromQuery] int? halaqaId = null,
+            [FromQuery] int? teacherId = null,
             [FromQuery] string? fromDate = null,
             [FromQuery] string? toDate = null)
         {
@@ -350,7 +356,8 @@ namespace KhairAPI.Controllers
             {
                 FromDate = parsedFromDate,
                 ToDate = parsedToDate,
-                SelectedHalaqaId = halaqaId
+                SelectedHalaqaId = halaqaId,
+                SelectedTeacherId = teacherId
             };
 
             if (_currentUserService.IsTeacher)
@@ -388,18 +395,20 @@ namespace KhairAPI.Controllers
         /// <summary>
         /// Gets streak leaderboard - students with longest consecutive progress days.
         /// أطول سلاسل الإنجاز
-        /// 
+        ///
         /// - Teachers: See streaks for their students only
         /// - HalaqaSupervisors: See streaks for students in their assigned halaqat
-        /// - Supervisors: See all students, can filter by halaqa
-        /// 
+        /// - Supervisors: See all students, can filter by halaqa/teacher
+        ///
         /// A streak counts consecutive active halaqa days where the student had at least one progress record.
         /// </summary>
         /// <param name="halaqaId">Optional: Filter to a specific halaqa</param>
+        /// <param name="teacherId">Optional: Filter to a specific teacher (for supervisors)</param>
         /// <param name="limit">Number of top students to return (default: 10, max: 100)</param>
         [HttpGet("streak-leaderboard")]
         public async Task<IActionResult> GetStreakLeaderboard(
             [FromQuery] int? halaqaId = null,
+            [FromQuery] int? teacherId = null,
             [FromQuery] int limit = 10)
         {
             // Security: Validate and clamp limit
@@ -409,6 +418,7 @@ namespace KhairAPI.Controllers
             var filter = new StreakLeaderboardFilterDto
             {
                 SelectedHalaqaId = halaqaId,
+                SelectedTeacherId = teacherId,
                 Limit = limit
             };
 
