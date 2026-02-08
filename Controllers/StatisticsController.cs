@@ -13,11 +13,13 @@ namespace KhairAPI.Controllers
     {
         private readonly IStatisticsService _statisticsService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IFollowUpService _followUpService;
 
-        public StatisticsController(IStatisticsService statisticsService, ICurrentUserService currentUserService)
+        public StatisticsController(IStatisticsService statisticsService, ICurrentUserService currentUserService, IFollowUpService followUpService)
         {
             _statisticsService = statisticsService;
             _currentUserService = currentUserService;
+            _followUpService = followUpService;
         }
 
         [HttpGet("dashboard")]
@@ -454,6 +456,65 @@ namespace KhairAPI.Controllers
 
             var result = await _statisticsService.GetStreakLeaderboardAsync(filter);
 
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Gets follow-up data: hierarchical view of halaqat → teachers → students
+        /// with today's attendance and achievement (progress vs targets).
+        /// المتابعة اليومية
+        ///
+        /// - Teachers: See their students only
+        /// - HalaqaSupervisors: See their assigned halaqat
+        /// - Supervisors: See all
+        /// </summary>
+        /// <param name="date">Optional: Date in YYYY-MM-DD format (default: today)</param>
+        [HttpGet("follow-up")]
+        public async Task<IActionResult> GetFollowUpData([FromQuery] string? date = null)
+        {
+            // Parse date
+            DateTime parsedDate = DateTime.UtcNow.Date;
+
+            if (!string.IsNullOrEmpty(date))
+            {
+                if (!DateTime.TryParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out parsedDate))
+                {
+                    return BadRequest(new { message = "صيغة التاريخ غير صحيحة. استخدم الصيغة: YYYY-MM-DD" });
+                }
+
+                // Validate date range
+                var minAllowedDate = new DateTime(2020, 1, 1);
+                var maxAllowedDate = DateTime.UtcNow.Date;
+
+                if (parsedDate < minAllowedDate)
+                {
+                    return BadRequest(new { message = "التاريخ لا يمكن أن يكون قبل 2020-01-01" });
+                }
+
+                if (parsedDate > maxAllowedDate)
+                {
+                    return BadRequest(new { message = "التاريخ لا يمكن أن يكون في المستقبل" });
+                }
+            }
+
+            // Role-based filtering
+            int? teacherId = null;
+            List<int>? supervisedHalaqaIds = null;
+
+            if (_currentUserService.IsTeacher)
+            {
+                teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+            }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
+            // Full Supervisors see all (no filtering)
+
+            var result = await _followUpService.GetFollowUpDataAsync(parsedDate, teacherId, supervisedHalaqaIds);
             return Ok(result);
         }
     }

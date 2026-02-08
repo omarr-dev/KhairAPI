@@ -1175,12 +1175,21 @@ namespace KhairAPI.Services.Implementations
                 studentHalaqaQuery = studentHalaqaQuery.Where(sh => sh.TeacherId == filter.SelectedTeacherId);
             }
 
-            // Get distinct student IDs in scope (single query)
-            var studentIds = await studentHalaqaQuery
-                .Select(sh => sh.StudentId)
-                .Distinct()
+            // Get students with their halaqa active days (needed for accurate target calculation)
+            var studentAssignments = await studentHalaqaQuery
+                .Select(sh => new
+                {
+                    sh.StudentId,
+                    HalaqaActiveDays = sh.Halaqa!.ActiveDays
+                })
                 .ToListAsync();
 
+            // Use first assignment per student (students may have multiple halaqat)
+            var studentHalaqaLookup = studentAssignments
+                .GroupBy(s => s.StudentId)
+                .ToDictionary(g => g.Key, g => g.First().HalaqaActiveDays);
+
+            var studentIds = studentHalaqaLookup.Keys.ToList();
             var studentIdsSet = studentIds.ToHashSet();
             var totalStudents = studentIds.Count;
 
@@ -1217,15 +1226,48 @@ namespace KhairAPI.Services.Implementations
             // Calculate number of days in the range (inclusive)
             var numberOfDays = (int)(toDate - fromDate).TotalDays + 1;
 
-            // Calculate daily aggregated targets (sum of all student daily targets)
+            // Helper function to count active days in date range for a given halaqa schedule
+            int CountActiveDaysInRange(string? activeDaysStr)
+            {
+                var activeDays = ParseActiveDays(activeDaysStr).ToHashSet();
+                int count = 0;
+                for (var date = fromDate; date <= toDate; date = date.AddDays(1))
+                {
+                    if (activeDays.Contains((int)date.DayOfWeek))
+                        count++;
+                }
+                return count;
+            }
+
+            // Calculate cumulative targets based on each student's halaqa active days
+            // Target = sum of (student's daily target × their halaqa's active days in range)
+            int totalMemorizationTarget = 0;
+            int totalRevisionTarget = 0;
+            int totalConsolidationTarget = 0;
+
+            // Also calculate daily targets (for the daily percentage calculation)
             var dailyMemorizationTarget = targets.Sum(t => t.MemorizationLinesTarget ?? 0);
             var dailyRevisionTarget = targets.Sum(t => t.RevisionPagesTarget ?? 0);
             var dailyConsolidationTarget = targets.Sum(t => t.ConsolidationPagesTarget ?? 0);
 
-            // Calculate cumulative targets for the entire date range (daily target × number of days)
-            var totalMemorizationTarget = dailyMemorizationTarget * numberOfDays;
-            var totalRevisionTarget = dailyRevisionTarget * numberOfDays;
-            var totalConsolidationTarget = dailyConsolidationTarget * numberOfDays;
+            // Cache active days count per unique schedule to avoid recalculating
+            var activeDaysCountCache = new Dictionary<string, int>();
+
+            foreach (var target in targets)
+            {
+                var halaqaActiveDays = studentHalaqaLookup.TryGetValue(target.StudentId, out var days) ? days : null;
+                var cacheKey = halaqaActiveDays ?? "";
+
+                if (!activeDaysCountCache.TryGetValue(cacheKey, out int activeDaysCount))
+                {
+                    activeDaysCount = CountActiveDaysInRange(halaqaActiveDays);
+                    activeDaysCountCache[cacheKey] = activeDaysCount;
+                }
+
+                totalMemorizationTarget += (target.MemorizationLinesTarget ?? 0) * activeDaysCount;
+                totalRevisionTarget += (target.RevisionPagesTarget ?? 0) * activeDaysCount;
+                totalConsolidationTarget += (target.ConsolidationPagesTarget ?? 0) * activeDaysCount;
+            }
 
             // Get progress records grouped by date and type (optimized single query)
             var progressAggregations = await _context.ProgressRecords

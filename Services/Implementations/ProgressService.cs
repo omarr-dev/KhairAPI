@@ -382,8 +382,8 @@ namespace KhairAPI.Services.Implementations
         }
 
         /// <summary>
-        /// Updates streak when progress is recorded. Checks if all set targets are met for the day
-        /// and increments streak accordingly.
+        /// Updates streak when progress is recorded. Checks if all set targets are met at 90% threshold for the day
+        /// and increments streak accordingly. Targets set to 0 are treated as "no target".
         /// </summary>
         private async Task UpdateStreakOnProgressAsync(int studentId, DateTime progressDate, int halaqaId)
         {
@@ -440,18 +440,24 @@ namespace KhairAPI.Services.Implementations
                 .Where(p => p.Type == ProgressType.Consolidation)
                 .Sum(p => p.NumberLines);
 
-            // Check if all set targets are met
-            bool memorizationMet = !studentTarget.MemorizationLinesTarget.HasValue ||
-                                   memorizationLines >= studentTarget.MemorizationLinesTarget.Value;
-            bool revisionMet = !studentTarget.RevisionPagesTarget.HasValue ||
-                               revisionLines >= (studentTarget.RevisionPagesTarget.Value * LinesPerPage);
-            bool consolidationMet = !studentTarget.ConsolidationPagesTarget.HasValue ||
-                                    consolidationLines >= (studentTarget.ConsolidationPagesTarget.Value * LinesPerPage);
+            // Check if all set targets are met (90% threshold)
+            // Targets set to 0 are treated as "no target" (same as null)
+            const double StreakThreshold = 0.9; // 90% of target
 
-            // At least one target must be set, and all set targets must be met
-            bool hasAnyTarget = studentTarget.MemorizationLinesTarget.HasValue ||
-                               studentTarget.RevisionPagesTarget.HasValue ||
-                               studentTarget.ConsolidationPagesTarget.HasValue;
+            bool memorizationMet = !studentTarget.MemorizationLinesTarget.HasValue ||
+                                   studentTarget.MemorizationLinesTarget.Value == 0 ||
+                                   memorizationLines >= (studentTarget.MemorizationLinesTarget.Value * StreakThreshold);
+            bool revisionMet = !studentTarget.RevisionPagesTarget.HasValue ||
+                               studentTarget.RevisionPagesTarget.Value == 0 ||
+                               revisionLines >= (studentTarget.RevisionPagesTarget.Value * LinesPerPage * StreakThreshold);
+            bool consolidationMet = !studentTarget.ConsolidationPagesTarget.HasValue ||
+                                    studentTarget.ConsolidationPagesTarget.Value == 0 ||
+                                    consolidationLines >= (studentTarget.ConsolidationPagesTarget.Value * LinesPerPage * StreakThreshold);
+
+            // At least one target must be set (non-zero), and all set targets must be met
+            bool hasAnyTarget = (studentTarget.MemorizationLinesTarget.HasValue && studentTarget.MemorizationLinesTarget.Value > 0) ||
+                               (studentTarget.RevisionPagesTarget.HasValue && studentTarget.RevisionPagesTarget.Value > 0) ||
+                               (studentTarget.ConsolidationPagesTarget.HasValue && studentTarget.ConsolidationPagesTarget.Value > 0);
 
             if (!hasAnyTarget || !memorizationMet || !revisionMet || !consolidationMet)
             {

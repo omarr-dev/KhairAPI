@@ -189,6 +189,7 @@ namespace KhairAPI.Core.Extensions
             services.AddScoped<ITeacherAttendanceService, TeacherAttendanceService>();
             services.AddScoped<IStudentTargetService, StudentTargetService>();
             services.AddScoped<IHalaqaSupervisorService, HalaqaSupervisorService>();
+            services.AddScoped<IFollowUpService, FollowUpService>();
 
             // AutoMapper
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
