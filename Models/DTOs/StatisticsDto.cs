@@ -91,6 +91,7 @@ namespace KhairAPI.Models.DTOs
         public string TeacherName { get; set; } = string.Empty;
         public double AttendanceRate { get; set; }
         public int DaysSinceLastProgress { get; set; }
+        public int DaysSinceLastAttendance { get; set; }
         public int ConsecutiveAbsences { get; set; }
     }
 
