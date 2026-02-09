@@ -599,16 +599,6 @@ namespace KhairAPI.Services.Implementations
                 // Flag as at-risk if 3 or more consecutive absences
                 if (consecutiveAbsences >= 3)
                 {
-                    // Calculate days since last attendance (Present status)
-                    var lastAttendance = studentAttendance
-                        .Where(a => a.Status == AttendanceStatus.Present)
-                        .OrderByDescending(a => a.Date)
-                        .FirstOrDefault();
-
-                    var daysSinceLastAttendance = lastAttendance != null
-                        ? (today - lastAttendance.Date).Days
-                        : (today - student.CreatedAt.Date).Days;
-
                     atRiskStudents.Add(new AtRiskStudentDto
                     {
                         Id = student.Id,
@@ -617,7 +607,6 @@ namespace KhairAPI.Services.Implementations
                         TeacherName = activeAssignment.Teacher?.FullName ?? "",
                         AttendanceRate = 0, // Not used anymore, will show consecutive absences instead
                         DaysSinceLastProgress = daysSinceProgress,
-                        DaysSinceLastAttendance = daysSinceLastAttendance,
                         ConsecutiveAbsences = consecutiveAbsences
                     });
                 }
@@ -721,16 +710,6 @@ namespace KhairAPI.Services.Implementations
                 // Flag as at-risk if 3 or more consecutive absences
                 if (consecutiveAbsences >= 3)
                 {
-                    // Calculate days since last attendance (Present status)
-                    var lastAttendance = studentAttendance
-                        .Where(a => a.Status == AttendanceStatus.Present)
-                        .OrderByDescending(a => a.Date)
-                        .FirstOrDefault();
-
-                    var daysSinceLastAttendance = lastAttendance != null
-                        ? (today - lastAttendance.Date).Days
-                        : (today - student.CreatedAt.Date).Days;
-
                     atRiskStudents.Add(new AtRiskStudentDto
                     {
                         Id = student.Id,
@@ -739,7 +718,6 @@ namespace KhairAPI.Services.Implementations
                         TeacherName = activeAssignment.Teacher?.FullName ?? "",
                         AttendanceRate = 0, // Not used anymore, will show consecutive absences instead
                         DaysSinceLastProgress = daysSinceProgress,
-                        DaysSinceLastAttendance = daysSinceLastAttendance,
                         ConsecutiveAbsences = consecutiveAbsences
                     });
                 }
