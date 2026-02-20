@@ -199,6 +199,14 @@ namespace KhairAPI.Services.Implementations
                 };
             }
 
+            // Fetch the student's halaqa active days to correctly skip non-active days in streak calculation
+            var halaqaActiveDaysStr = await _context.StudentHalaqat
+                .AsNoTracking()
+                .Where(sh => sh.StudentId == studentId && sh.IsActive)
+                .Select(sh => sh.Halaqa.ActiveDays)
+                .FirstOrDefaultAsync();
+            var activeDaysSet = ParseActiveDays(halaqaActiveDaysStr);
+
             // Get all progress records in the date range with a single query
             var nextDayAfterEnd = end.AddDays(1);
             var progressRecords = await _context.ProgressRecords
@@ -237,8 +245,8 @@ namespace KhairAPI.Services.Implementations
                 });
             }
 
-            // Calculate streaks
-            var (currentStreak, bestStreak) = CalculateStreaks(dailyAchievements);
+            // Calculate streaks (non-active halaqa days are skipped, not treated as streak-breakers)
+            var (currentStreak, bestStreak) = CalculateStreaks(dailyAchievements, activeDaysSet);
 
             // Calculate summary statistics
             var daysWithTarget = dailyAchievements.Where(a => a.IsTargetMet).ToList();
@@ -265,15 +273,21 @@ namespace KhairAPI.Services.Implementations
         /// <summary>
         /// Calculate current and best streaks from daily achievements.
         /// Current streak counts backwards from the most recent day where target was met.
-        /// A streak is consecutive days where the target was fully achieved.
-        /// Note: This counts calendar days, not halaqa active days (different from StatisticsService).
+        /// A streak is consecutive active-halaqa days where the target was achieved.
+        /// Non-active days (e.g. weekend for a Mon–Fri halaqa) are skipped — they do not break a streak.
         /// </summary>
-        private static (int CurrentStreak, int BestStreak) CalculateStreaks(List<TargetAchievementDto> achievements)
+        private static (int CurrentStreak, int BestStreak) CalculateStreaks(
+            List<TargetAchievementDto> achievements, HashSet<int> activeDaysOfWeek)
         {
-            if (!achievements.Any()) return (0, 0);
+            // Filter to only active halaqa days — non-active days are neutral, not streak-breakers
+            var filtered = activeDaysOfWeek.Count > 0
+                ? achievements.Where(a => activeDaysOfWeek.Contains((int)a.Date.DayOfWeek)).ToList()
+                : achievements;
+
+            if (!filtered.Any()) return (0, 0);
 
             // Sort by date descending for current streak calculation
-            var sorted = achievements.OrderByDescending(a => a.Date).ToList();
+            var sorted = filtered.OrderByDescending(a => a.Date).ToList();
             
             // Current streak: Find the most recent day with target met, then count backwards
             int currentStreak = 0;
@@ -295,7 +309,7 @@ namespace KhairAPI.Services.Implementations
             }
 
             // Best streak: Find longest consecutive run of target-met days
-            var sortedAsc = achievements.OrderBy(a => a.Date).ToList();
+            var sortedAsc = filtered.OrderBy(a => a.Date).ToList();
             int bestStreak = 0;
             int tempStreak = 0;
             
@@ -317,6 +331,19 @@ namespace KhairAPI.Services.Implementations
             bestStreak = Math.Max(bestStreak, currentStreak);
 
             return (currentStreak, bestStreak);
+        }
+
+        private static HashSet<int> ParseActiveDays(string? activeDays)
+        {
+            if (string.IsNullOrWhiteSpace(activeDays))
+                return new HashSet<int> { 0, 1, 2, 3, 4 }; // Default to Sun-Thu if not set
+
+            var days = activeDays
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(d => int.TryParse(d.Trim(), out var day) ? day : -1)
+                .Where(d => d >= 0 && d <= 6);
+
+            return new HashSet<int>(days);
         }
 
         private static DateTime NormalizeToUtc(DateTime date)

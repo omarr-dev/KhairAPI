@@ -308,12 +308,14 @@ namespace KhairAPI.Models.DTOs
             ? Math.Min(100, (double)ConsolidationPagesAchieved / ConsolidationPagesTarget.Value * 100) : null;
         
         /// <summary>
-        /// Returns true if all set targets were met (100%+ on all)
+        /// Returns true if at least one target is set and all set targets were met (90% threshold — matches ProgressService.StreakThreshold).
+        /// Returns false when no targets are configured (prevents spurious streak inflation).
         /// </summary>
-        public bool IsTargetMet => 
-            (MemorizationLinesTarget == null || MemorizationLinesTarget == 0 || MemorizationLinesAchieved >= MemorizationLinesTarget) &&
-            (RevisionPagesTarget == null || RevisionPagesTarget == 0 || RevisionPagesAchieved >= RevisionPagesTarget) &&
-            (ConsolidationPagesTarget == null || ConsolidationPagesTarget == 0 || ConsolidationPagesAchieved >= ConsolidationPagesTarget);
+        public bool IsTargetMet =>
+            ((MemorizationLinesTarget > 0) || (RevisionPagesTarget > 0) || (ConsolidationPagesTarget > 0)) &&
+            (MemorizationLinesTarget == null || MemorizationLinesTarget == 0 || MemorizationLinesAchieved >= (int)Math.Floor(MemorizationLinesTarget.Value * 0.9)) &&
+            (RevisionPagesTarget == null || RevisionPagesTarget == 0 || RevisionPagesAchieved >= (int)Math.Floor(RevisionPagesTarget.Value * 0.9)) &&
+            (ConsolidationPagesTarget == null || ConsolidationPagesTarget == 0 || ConsolidationPagesAchieved >= (int)Math.Floor(ConsolidationPagesTarget.Value * 0.9));
     }
 
     /// <summary>

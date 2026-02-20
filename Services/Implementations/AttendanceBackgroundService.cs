@@ -36,7 +36,7 @@ namespace KhairAPI.Services.Implementations
 
             // 1. Get all active halaqat and their active days
             var halaqat = await context.Halaqat
-                .Where(h => h.IsActive && h.ActiveDays != null)
+                .Where(h => h.IsActive)
                 .ToListAsync();
 
             // 2. Filter halaqat that are active today (in-memory parsing of ActiveDays string)
@@ -121,7 +121,7 @@ namespace KhairAPI.Services.Implementations
         private List<int> ParseActiveDays(string? activeDays)
         {
             if (string.IsNullOrWhiteSpace(activeDays))
-                return new List<int>();
+                return new List<int> { 0, 1, 2, 3, 4 }; // Default to Sun-Thu if not set
 
             return activeDays
                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -146,7 +146,7 @@ namespace KhairAPI.Services.Implementations
 
             // 1. Get all active halaqat and filter those active today
             var halaqat = await context.Halaqat
-                .Where(h => h.IsActive && h.ActiveDays != null)
+                .Where(h => h.IsActive)
                 .ToListAsync();
 
             var activeHalaqatToday = halaqat
@@ -199,9 +199,17 @@ namespace KhairAPI.Services.Implementations
 
             if (totalReset > 0)
             {
-                await context.SaveChangesAsync();
-                _logger.LogInformation("Reset {Count} streaks for {Date}",
-                    totalReset, targetDate.ToString("yyyy-MM-dd"));
+                try
+                {
+                    await context.SaveChangesAsync();
+                    _logger.LogInformation("Reset {Count} streaks for {Date}",
+                        totalReset, targetDate.ToString("yyyy-MM-dd"));
+                }
+                catch (DbUpdateException ex)
+                {
+                    _logger.LogError(ex, "Failed to save streak resets for {Date}", targetDate.ToString("yyyy-MM-dd"));
+                    throw;
+                }
             }
 
             return totalReset;

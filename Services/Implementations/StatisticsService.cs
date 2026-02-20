@@ -899,6 +899,7 @@ namespace KhairAPI.Services.Implementations
                 // Determine if streak is active:
                 // - If LastStreakDate is today, streak is active
                 // - If today is not an active day and LastStreakDate was the most recent active day, streak is active
+                // - If today IS an active day but progress not yet recorded, check the previous active day
                 bool isActive = false;
                 if (target.LastStreakDate.HasValue && target.CurrentStreak > 0)
                 {
@@ -909,6 +910,21 @@ namespace KhairAPI.Services.Implementations
                     else if (!activeDaysSet.Contains((int)today.DayOfWeek))
                     {
                         // Today is not an active day, find the most recent active day
+                        var checkDate = today.AddDays(-1);
+                        while ((today - checkDate).Days <= 7)
+                        {
+                            if (activeDaysSet.Contains((int)checkDate.DayOfWeek))
+                            {
+                                isActive = (target.LastStreakDate.Value.Date == checkDate);
+                                break;
+                            }
+                            checkDate = checkDate.AddDays(-1);
+                        }
+                    }
+                    else
+                    {
+                        // Today IS an active day but progress not yet recorded.
+                        // Streak is still alive if they completed the previous active day.
                         var checkDate = today.AddDays(-1);
                         while ((today - checkDate).Days <= 7)
                         {
