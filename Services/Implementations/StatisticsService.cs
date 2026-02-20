@@ -40,6 +40,17 @@ namespace KhairAPI.Services.Implementations
                 progressQuery = progressQuery.Where(p => p.TeacherId == teacherId);
                 attendanceQuery = attendanceQuery.Where(a => studentIdsSet.Contains(a.StudentId));
             }
+            else if (halaqaFilter != null)
+            {
+                var halaqaStudentIds = await _context.StudentHalaqat
+                    .Where(sh => halaqaFilter.Contains(sh.HalaqaId) && sh.IsActive)
+                    .Select(sh => sh.StudentId)
+                    .ToListAsync();
+                var halaqaStudentIdsSet = halaqaStudentIds.ToHashSet();
+                studentQuery = studentQuery.Where(s => halaqaStudentIds.Contains(s.Id));
+                progressQuery = progressQuery.Where(p => halaqaFilter.Contains(p.HalaqaId));
+                attendanceQuery = attendanceQuery.Where(a => halaqaStudentIdsSet.Contains(a.StudentId));
+            }
 
             // Execute queries sequentially (DbContext is not thread-safe)
             var totalStudents = await studentQuery.CountAsync();
@@ -130,6 +141,16 @@ namespace KhairAPI.Services.Implementations
                     .Select(sh => sh.StudentId)
                     .ToListAsync();
                 studentQuery = studentQuery.Where(s => halaqaStudentIds.Contains(s.Id));
+            }
+            else if (halaqaFilter != null)
+            {
+                progressQuery = progressQuery.Where(p => halaqaFilter.Contains(p.HalaqaId));
+                attendanceQuery = attendanceQuery.Where(a => halaqaFilter.Contains(a.HalaqaId));
+                var supervisorStudentIds = await _context.StudentHalaqat
+                    .Where(sh => halaqaFilter.Contains(sh.HalaqaId) && sh.IsActive)
+                    .Select(sh => sh.StudentId)
+                    .ToListAsync();
+                studentQuery = studentQuery.Where(s => supervisorStudentIds.Contains(s.Id));
             }
 
             if (teacherId.HasValue)
@@ -519,13 +540,20 @@ namespace KhairAPI.Services.Implementations
             var fromDate = today.AddDays(-30);
 
             // Load all students with their halaqa assignments
-            var students = await _context.Students
+            var studentsQuery = _context.Students
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Teacher)
-                .Where(s => s.StudentHalaqat.Any(sh => sh.IsActive))
-                .ToListAsync();
+                .Where(s => s.StudentHalaqat.Any(sh => sh.IsActive));
+
+            if (halaqaFilter != null)
+            {
+                studentsQuery = studentsQuery
+                    .Where(s => s.StudentHalaqat.Any(sh => sh.IsActive && halaqaFilter.Contains(sh.HalaqaId)));
+            }
+
+            var students = await studentsQuery.ToListAsync();
 
             var studentIds = students.Select(s => s.Id).ToHashSet();
 
