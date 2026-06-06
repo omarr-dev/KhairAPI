@@ -348,6 +348,106 @@ namespace KhairAPI.Services.Implementations
             };
         }
 
+        public async Task<TeacherSelfAttendanceStatusDto> GetSelfAttendanceStatusAsync(int teacherId)
+        {
+            var today = DateTime.UtcNow.Date;
+            var dayOfWeek = (int)today.DayOfWeek;
+
+            var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
+
+            var checkedIn = false;
+            if (activeHalaqaIds.Count > 0)
+            {
+                checkedIn = await _context.TeacherAttendances.AnyAsync(ta =>
+                    ta.TeacherId == teacherId &&
+                    activeHalaqaIds.Contains(ta.HalaqaId) &&
+                    ta.Date.Date == today &&
+                    ta.Status == AttendanceStatus.Present);
+            }
+
+            return new TeacherSelfAttendanceStatusDto
+            {
+                Date = today,
+                DayName = AppConstants.ArabicDayNames.GetDayName(today.DayOfWeek),
+                CheckedIn = checkedIn,
+                HasActiveHalaqaToday = activeHalaqaIds.Count > 0,
+                HalaqatCount = activeHalaqaIds.Count
+            };
+        }
+
+        public async Task<TeacherSelfCheckInResultDto> SelfCheckInAsync(int teacherId)
+        {
+            if (_tenantService.CurrentAssociationId == null)
+            {
+                throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
+            }
+
+            var today = DateTime.UtcNow.Date;
+            var dayOfWeek = (int)today.DayOfWeek;
+
+            var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
+            if (activeHalaqaIds.Count == 0)
+            {
+                throw new InvalidOperationException("لا توجد حلقة نشطة لك اليوم");
+            }
+
+            // Skip halaqat that already have a record today (don't overwrite a supervisor's entry)
+            var alreadyRecorded = await _context.TeacherAttendances
+                .Where(ta => ta.TeacherId == teacherId &&
+                             activeHalaqaIds.Contains(ta.HalaqaId) &&
+                             ta.Date.Date == today)
+                .Select(ta => ta.HalaqaId)
+                .ToListAsync();
+            var alreadyRecordedSet = alreadyRecorded.ToHashSet();
+
+            var created = 0;
+            foreach (var halaqaId in activeHalaqaIds)
+            {
+                if (alreadyRecordedSet.Contains(halaqaId))
+                    continue;
+
+                _context.TeacherAttendances.Add(new TeacherAttendance
+                {
+                    TeacherId = teacherId,
+                    HalaqaId = halaqaId,
+                    Date = today,
+                    Status = AttendanceStatus.Present,
+                    CreatedAt = DateTime.UtcNow,
+                    AssociationId = _tenantService.CurrentAssociationId.Value
+                });
+                created++;
+            }
+
+            if (created > 0)
+            {
+                await _context.SaveChangesAsync();
+            }
+
+            return new TeacherSelfCheckInResultDto
+            {
+                CheckedIn = true,
+                RecordsCreated = created,
+                Message = AppConstants.SuccessMessages.TeacherCheckedIn
+            };
+        }
+
+        /// <summary>
+        /// Returns the IDs of the teacher's halaqat that are active (scheduled) today.
+        /// </summary>
+        private async Task<List<int>> GetTeacherActiveHalaqaIdsTodayAsync(int teacherId, int dayOfWeek)
+        {
+            var halaqat = await _context.HalaqaTeachers
+                .Where(ht => ht.TeacherId == teacherId && ht.Halaqa.IsActive)
+                .Select(ht => new { ht.HalaqaId, ht.Halaqa.ActiveDays })
+                .ToListAsync();
+
+            return halaqat
+                .Where(h => IsHalaqaActiveToday(h.ActiveDays, dayOfWeek))
+                .Select(h => h.HalaqaId)
+                .Distinct()
+                .ToList();
+        }
+
         private static int CalculateExpectedWorkingDays(List<Halaqa> halaqat, DateTime startDate, DateTime endDate)
         {
             var activeDaysSet = new HashSet<int>();

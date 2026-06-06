@@ -115,6 +115,31 @@ namespace KhairAPI.Models.DTOs
     }
 
     /// <summary>
+    /// A teacher's own attendance status for today (self check-in feature)
+    /// </summary>
+    public class TeacherSelfAttendanceStatusDto
+    {
+        public DateTime Date { get; set; }
+        public string DayName { get; set; } = string.Empty; // Arabic day name
+        /// <summary>True if the teacher is already marked present today.</summary>
+        public bool CheckedIn { get; set; }
+        /// <summary>False when the teacher has no halaqa scheduled today (nothing to check in to).</summary>
+        public bool HasActiveHalaqaToday { get; set; }
+        /// <summary>Number of the teacher's halaqat that are active today.</summary>
+        public int HalaqatCount { get; set; }
+    }
+
+    /// <summary>
+    /// Result of a teacher self check-in
+    /// </summary>
+    public class TeacherSelfCheckInResultDto
+    {
+        public bool CheckedIn { get; set; }
+        public int RecordsCreated { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    /// <summary>
     /// Monthly attendance report for all teachers (for salary calculation)
     /// </summary>
     public class MonthlyAttendanceReportDto

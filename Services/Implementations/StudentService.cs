@@ -178,35 +178,30 @@ namespace KhairAPI.Services.Implementations
                 var target = r.Target;
                 var activeAssignment = r.Assignments.FirstOrDefault(a => a.IsActive);
 
-                // Build today's achievement only if target exists with any value set
-                TodayAchievementDto? todayAchievement = null;
-                if (target != null)
+                // Always build today's achievement so teachers can see whether the
+                // student has any record today, even when no target has been set.
+                var hasAnyTarget = target != null && (
+                    target.MemorizationLinesTarget.HasValue ||
+                    target.RevisionPagesTarget.HasValue ||
+                    target.ConsolidationPagesTarget.HasValue);
+
+                var memLines = r.TodayProgress
+                    .FirstOrDefault(p => p.Type == ProgressType.Memorization)?.TotalLines ?? 0.0;
+                var revLines = r.TodayProgress
+                    .FirstOrDefault(p => p.Type == ProgressType.Revision)?.TotalLines ?? 0.0;
+                var conLines = r.TodayProgress
+                    .FirstOrDefault(p => p.Type == ProgressType.Consolidation)?.TotalLines ?? 0.0;
+
+                var todayAchievement = new TodayAchievementDto
                 {
-                    var hasAnyTarget = target.MemorizationLinesTarget.HasValue ||
-                                      target.RevisionPagesTarget.HasValue ||
-                                      target.ConsolidationPagesTarget.HasValue;
-
-                    if (hasAnyTarget)
-                    {
-                        var memLines = r.TodayProgress
-                            .FirstOrDefault(p => p.Type == ProgressType.Memorization)?.TotalLines ?? 0.0;
-                        var revLines = r.TodayProgress
-                            .FirstOrDefault(p => p.Type == ProgressType.Revision)?.TotalLines ?? 0.0;
-                        var conLines = r.TodayProgress
-                            .FirstOrDefault(p => p.Type == ProgressType.Consolidation)?.TotalLines ?? 0.0;
-
-                        todayAchievement = new TodayAchievementDto
-                        {
-                            HasTarget = true,
-                            MemorizationLinesTarget = target.MemorizationLinesTarget,
-                            RevisionPagesTarget = target.RevisionPagesTarget,
-                            ConsolidationPagesTarget = target.ConsolidationPagesTarget,
-                            MemorizationLinesAchieved = (int)Math.Round(memLines),
-                            RevisionPagesAchieved = revLines > 0 ? (int)Math.Ceiling(revLines / LinesPerPage) : 0,
-                            ConsolidationPagesAchieved = conLines > 0 ? (int)Math.Ceiling(conLines / LinesPerPage) : 0
-                        };
-                    }
-                }
+                    HasTarget = hasAnyTarget,
+                    MemorizationLinesTarget = target?.MemorizationLinesTarget,
+                    RevisionPagesTarget = target?.RevisionPagesTarget,
+                    ConsolidationPagesTarget = target?.ConsolidationPagesTarget,
+                    MemorizationLinesAchieved = (int)Math.Round(memLines),
+                    RevisionPagesAchieved = revLines > 0 ? (int)Math.Ceiling(revLines / LinesPerPage) : 0,
+                    ConsolidationPagesAchieved = conLines > 0 ? (int)Math.Ceiling(conLines / LinesPerPage) : 0
+                };
 
                 return new StudentDto
                 {
@@ -670,34 +665,34 @@ namespace KhairAPI.Services.Implementations
         {
             var activeAssignment = student.StudentHalaqat.FirstOrDefault(sh => sh.IsActive);
 
-            // Calculate today's achievement if progress data is provided
+            // Calculate today's achievement if progress data is provided. Built
+            // regardless of whether a target is set, so teachers can always see
+            // whether the student has a record today.
             TodayAchievementDto? todayAchievement = null;
-            if (todayProgressByStudent != null && student.Target != null)
+            if (todayProgressByStudent != null)
             {
                 const double LinesPerPage = 15.0;
-                var hasAnyTarget = student.Target.MemorizationLinesTarget.HasValue ||
-                                  student.Target.RevisionPagesTarget.HasValue ||
-                                  student.Target.ConsolidationPagesTarget.HasValue;
+                var hasAnyTarget = student.Target != null && (
+                    student.Target.MemorizationLinesTarget.HasValue ||
+                    student.Target.RevisionPagesTarget.HasValue ||
+                    student.Target.ConsolidationPagesTarget.HasValue);
 
-                if (hasAnyTarget)
+                var progress = todayProgressByStudent.TryGetValue(student.Id, out var p) ? p : new List<TodayProgressData>();
+
+                var memLines = progress.FirstOrDefault(x => x.Type == ProgressType.Memorization)?.TotalLines ?? 0.0;
+                var revLines = progress.FirstOrDefault(x => x.Type == ProgressType.Revision)?.TotalLines ?? 0.0;
+                var conLines = progress.FirstOrDefault(x => x.Type == ProgressType.Consolidation)?.TotalLines ?? 0.0;
+
+                todayAchievement = new TodayAchievementDto
                 {
-                    var progress = todayProgressByStudent.TryGetValue(student.Id, out var p) ? p : new List<TodayProgressData>();
-
-                    var memLines = progress.FirstOrDefault(x => x.Type == ProgressType.Memorization)?.TotalLines ?? 0.0;
-                    var revLines = progress.FirstOrDefault(x => x.Type == ProgressType.Revision)?.TotalLines ?? 0.0;
-                    var conLines = progress.FirstOrDefault(x => x.Type == ProgressType.Consolidation)?.TotalLines ?? 0.0;
-
-                    todayAchievement = new TodayAchievementDto
-                    {
-                        HasTarget = true,
-                        MemorizationLinesTarget = student.Target.MemorizationLinesTarget,
-                        RevisionPagesTarget = student.Target.RevisionPagesTarget,
-                        ConsolidationPagesTarget = student.Target.ConsolidationPagesTarget,
-                        MemorizationLinesAchieved = (int)Math.Round(memLines),
-                        RevisionPagesAchieved = (int)Math.Ceiling(revLines / LinesPerPage),
-                        ConsolidationPagesAchieved = (int)Math.Ceiling(conLines / LinesPerPage)
-                    };
-                }
+                    HasTarget = hasAnyTarget,
+                    MemorizationLinesTarget = student.Target?.MemorizationLinesTarget,
+                    RevisionPagesTarget = student.Target?.RevisionPagesTarget,
+                    ConsolidationPagesTarget = student.Target?.ConsolidationPagesTarget,
+                    MemorizationLinesAchieved = (int)Math.Round(memLines),
+                    RevisionPagesAchieved = (int)Math.Ceiling(revLines / LinesPerPage),
+                    ConsolidationPagesAchieved = (int)Math.Ceiling(conLines / LinesPerPage)
+                };
             }
 
             return new StudentDto

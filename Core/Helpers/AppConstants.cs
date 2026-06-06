@@ -89,6 +89,7 @@ namespace KhairAPI.Core.Helpers
             public const string AttendanceSaved = "تم حفظ سجل الحضور بنجاح";
             public const string AttendanceUpdated = "تم تحديث الحضور بنجاح";
             public const string TeacherAttendanceSaved = "تم حفظ حضور المعلمين بنجاح";
+            public const string TeacherCheckedIn = "تم تسجيل حضورك بنجاح";
         }
 
         public static class ArabicDayNames

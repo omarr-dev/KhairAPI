@@ -11,6 +11,17 @@ namespace KhairAPI.Services.Interfaces
         Task<IEnumerable<TeacherAttendanceRecordDto>> GetTeacherAttendanceHistoryAsync(
             int teacherId, DateTime? fromDate = null, DateTime? toDate = null, List<int>? halaqaFilter = null);
         Task<MonthlyAttendanceReportDto> GetMonthlyReportAsync(int year, int month, List<int>? halaqaFilter = null);
+
+        /// <summary>
+        /// Gets a teacher's own attendance status for today (for the self check-in button).
+        /// </summary>
+        Task<TeacherSelfAttendanceStatusDto> GetSelfAttendanceStatusAsync(int teacherId);
+
+        /// <summary>
+        /// Marks the teacher present in all of their halaqat that are active today.
+        /// Existing records (e.g. already set by a supervisor) are left untouched.
+        /// </summary>
+        Task<TeacherSelfCheckInResultDto> SelfCheckInAsync(int teacherId);
     }
 }
 
