@@ -260,9 +260,12 @@ namespace KhairAPI.Services.Implementations
 
         private void InvalidateStatisticsCache()
         {
-            _cache.Remove(SystemWideStats);
+            _cache.RemoveByPrefix("system_wide_stats");
             _cache.RemoveByPrefix("supervisor_dashboard");
             _cache.RemoveByPrefix("dashboard_stats");
+            _cache.RemoveByPrefix("halaqa_ranking");
+            _cache.RemoveByPrefix("teacher_ranking");
+            _cache.RemoveByPrefix("at_risk");
         }
 
         private AttendanceRecordDto MapToDto(Attendance attendance)

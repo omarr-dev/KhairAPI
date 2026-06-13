@@ -45,6 +45,28 @@ namespace KhairAPI.Services.Implementations
             return halaqat.Select(MapToDto);
         }
 
+        public async Task<List<LookupDto>> GetHalaqatLookupAsync(int? teacherId = null, List<int>? supervisedHalaqaIds = null)
+        {
+            var query = _context.Halaqat
+                .AsNoTracking()
+                .Where(h => h.IsActive);
+
+            if (teacherId.HasValue)
+            {
+                query = query.Where(h => h.HalaqaTeachers.Any(ht => ht.TeacherId == teacherId.Value));
+            }
+
+            if (supervisedHalaqaIds != null)
+            {
+                query = query.Where(h => supervisedHalaqaIds.Contains(h.Id));
+            }
+
+            return await query
+                .OrderBy(h => h.Name)
+                .Select(h => new LookupDto { Id = h.Id, Name = h.Name })
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync(List<int>? supervisedHalaqaIds = null)
         {
             // Students are intentionally NOT loaded here; clients fetch them

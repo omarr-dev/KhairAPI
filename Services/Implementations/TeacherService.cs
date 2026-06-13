@@ -31,6 +31,21 @@ namespace KhairAPI.Services.Implementations
             return teachers.Select(MapToDto);
         }
 
+        public async Task<List<LookupDto>> GetTeachersLookupAsync(List<int>? halaqaIds = null)
+        {
+            var query = _context.Teachers.AsNoTracking().AsQueryable();
+
+            if (halaqaIds != null)
+            {
+                query = query.Where(t => t.HalaqaTeachers.Any(ht => halaqaIds.Contains(ht.HalaqaId)));
+            }
+
+            return await query
+                .OrderBy(t => t.FullName)
+                .Select(t => new LookupDto { Id = t.Id, Name = t.FullName })
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<TeacherDto>> GetTeachersByHalaqasAsync(List<int> halaqaIds)
         {
             if (!halaqaIds.Any())

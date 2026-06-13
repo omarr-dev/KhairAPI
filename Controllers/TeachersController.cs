@@ -35,6 +35,24 @@ namespace KhairAPI.Controllers
             return Ok(allTeachers);
         }
 
+        /// <summary>
+        /// Minimal id/name list for dropdowns (avoids loading full teacher graphs)
+        /// </summary>
+        [HttpGet("lookup")]
+        public async Task<IActionResult> GetTeachersLookup()
+        {
+            List<int>? halaqaIds = null;
+
+            // HalaqaSupervisors only see teachers in their assigned halaqas
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                halaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync() ?? new List<int>();
+            }
+
+            var teachers = await _teacherService.GetTeachersLookupAsync(halaqaIds);
+            return Ok(teachers);
+        }
+
         [HttpGet("paginated")]
         [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> GetTeachersPaginated([FromQuery] TeacherFilterDto filter)

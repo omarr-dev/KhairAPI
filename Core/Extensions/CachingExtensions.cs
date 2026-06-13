@@ -43,11 +43,12 @@ namespace KhairAPI.Core.Extensions
         // Long-lived cache (1 hour) - for reference data
         public const string QuranSurahs = "quran_surahs";
         
-        // System-wide stats (no association filter)
-        public const string SystemWideStats = "system_wide_stats";
-        public const string SupervisorDashboard = "supervisor_dashboard_{0}"; // {0} = associationId or "all"
-        public const string HalaqaRanking = "halaqa_ranking_{0}_{1}"; // {0} = days, {1} = limit
-        public const string TeacherRanking = "teacher_ranking_{0}_{1}"; // {0} = days, {1} = limit
+        // Statistics caches — all keys start with the associationId to keep tenants isolated
+        public const string SystemWideStats = "system_wide_stats_{0}"; // {0} = associationId
+        public const string SupervisorDashboard = "supervisor_dashboard_{0}_{1}"; // {0} = associationId, {1} = halaqa filter
+        public const string HalaqaRanking = "halaqa_ranking_{0}_{1}_{2}_{3}"; // {0} = associationId, {1} = days, {2} = limit, {3} = halaqa filter
+        public const string TeacherRanking = "teacher_ranking_{0}_{1}_{2}_{3}"; // {0} = associationId, {1} = days, {2} = limit, {3} = halaqa filter
+        public const string AtRiskStudents = "at_risk_{0}_{1}_{2}"; // {0} = associationId, {1} = limit, {2} = halaqa filter
         
         public static string ForAssociation(string pattern, int associationId) 
             => string.Format(pattern, associationId);

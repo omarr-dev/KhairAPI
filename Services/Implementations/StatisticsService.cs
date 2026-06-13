@@ -13,14 +13,32 @@ namespace KhairAPI.Services.Implementations
     {
         private readonly AppDbContext _context;
         private readonly ICacheService _cache;
+        private readonly ITenantService _tenantService;
 
-        public StatisticsService(AppDbContext context, ICacheService cache)
+        public StatisticsService(AppDbContext context, ICacheService cache, ITenantService tenantService)
         {
             _context = context;
             _cache = cache;
+            _tenantService = tenantService;
         }
 
+        private int CurrentAssociationId => _tenantService.CurrentAssociationId ?? 0;
+
+        private static string FilterKey(List<int>? halaqaFilter) =>
+            halaqaFilter != null ? string.Join(",", halaqaFilter) : "all";
+
         public async Task<DashboardStatsDto> GetDashboardStatsAsync(int? teacherId = null, List<int>? halaqaFilter = null)
+        {
+            var cacheKey = $"dashboard_stats_{CurrentAssociationId}_{teacherId ?? 0}_{FilterKey(halaqaFilter)}";
+
+            return await _cache.GetOrCreateAsync(
+                cacheKey,
+                async () => await GetDashboardStatsInternalAsync(teacherId, halaqaFilter),
+                Short,
+                size: 2);
+        }
+
+        private async Task<DashboardStatsDto> GetDashboardStatsInternalAsync(int? teacherId = null, List<int>? halaqaFilter = null)
         {
             var today = DateTime.UtcNow.Date;
 
@@ -284,7 +302,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<SystemWideStatsDto> GetSystemWideStatsAsync()
         {
             return await _cache.GetOrCreateAsync(
-                SystemWideStats,
+                ForParams(SystemWideStats, CurrentAssociationId),
                 async () => await GetSystemWideStatsInternalAsync(),
                 Short);
         }
@@ -350,7 +368,7 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<SupervisorDashboardDto> GetSupervisorDashboardAsync(List<int>? halaqaFilter = null)
         {
-            var cacheKey = ForParams(SupervisorDashboard, halaqaFilter != null ? string.Join(",", halaqaFilter) : "all");
+            var cacheKey = ForParams(SupervisorDashboard, CurrentAssociationId, FilterKey(halaqaFilter));
 
             return await _cache.GetOrCreateAsync(
                 cacheKey,
@@ -400,7 +418,7 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<List<HalaqaRankingDto>> GetHalaqaRankingAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
         {
-            var cacheKey = ForParams(HalaqaRanking, days, limit);
+            var cacheKey = ForParams(HalaqaRanking, CurrentAssociationId, days, limit, FilterKey(halaqaFilter));
 
             return await _cache.GetOrCreateAsync(
                 cacheKey,
@@ -513,7 +531,7 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<List<TeacherRankingDto>> GetTeacherRankingAsync(int days = 7, int limit = 10, List<int>? halaqaFilter = null)
         {
-            var cacheKey = ForParams(TeacherRanking, days, limit);
+            var cacheKey = ForParams(TeacherRanking, CurrentAssociationId, days, limit, FilterKey(halaqaFilter));
 
             return await _cache.GetOrCreateAsync(
                 cacheKey,
@@ -637,7 +655,13 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<List<AtRiskStudentDto>> GetAtRiskStudentsAsync(int limit = 20, List<int>? halaqaFilter = null)
         {
-            return await GetAtRiskStudentsInternalAsync(limit, halaqaFilter);
+            var cacheKey = ForParams(AtRiskStudents, CurrentAssociationId, limit, FilterKey(halaqaFilter));
+
+            return await _cache.GetOrCreateAsync(
+                cacheKey,
+                async () => await GetAtRiskStudentsInternalAsync(limit, halaqaFilter),
+                Short,
+                size: 2);
         }
 
         private async Task<List<AtRiskStudentDto>> GetAtRiskStudentsInternalAsync(int limit = 20, List<int>? halaqaFilter = null)

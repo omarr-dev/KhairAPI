@@ -48,6 +48,30 @@ namespace KhairAPI.Controllers
             return Ok(halaqat);
         }
 
+        /// <summary>
+        /// Minimal id/name list for dropdowns (avoids loading counts and relations)
+        /// </summary>
+        [HttpGet("lookup")]
+        public async Task<IActionResult> GetHalaqatLookup()
+        {
+            int? teacherId = null;
+            List<int>? supervisedHalaqaIds = null;
+
+            if (_currentUserService.IsTeacher)
+            {
+                teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+            }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
+            }
+
+            var halaqat = await _halaqaService.GetHalaqatLookupAsync(teacherId, supervisedHalaqaIds);
+            return Ok(halaqat);
+        }
+
         [HttpGet("hierarchy")]
         [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> GetHalaqatHierarchy()

@@ -5,6 +5,7 @@ namespace KhairAPI.Services.Interfaces
     public interface ITeacherService
     {
         Task<IEnumerable<TeacherDto>> GetAllTeachersAsync();
+        Task<List<LookupDto>> GetTeachersLookupAsync(List<int>? halaqaIds = null);
         /// <summary>
         /// Get teachers assigned to any of the specified halaqas (for HalaqaSupervisors)
         /// </summary>
