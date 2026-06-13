@@ -274,15 +274,20 @@ namespace KhairAPI.Services.Implementations
             var activeAssignment = student.StudentHalaqat.FirstOrDefault(sh => sh.IsActive);
             var halaqaId = activeAssignment?.HalaqaId;
 
-            var allProgressRecords = await _context.ProgressRecords
+            // Only the 20 most recent records are needed for display. Fetch just
+            // those (with their includes) instead of materializing every record –
+            // a student with years of history could otherwise load thousands of rows.
+            var baseProgressQuery = _context.ProgressRecords
                 .AsNoTracking()
-                .Where(p => p.StudentId == id)
+                .Where(p => p.StudentId == id);
+
+            var progressRecords = await baseProgressQuery
                 .OrderByDescending(p => p.Date)
                 .Include(p => p.Teacher)
                 .Include(p => p.Halaqa)
+                .AsSplitQuery()
+                .Take(20)
                 .ToListAsync();
-
-            var progressRecords = allProgressRecords.Take(20).ToList();
 
             var sixtyDaysAgo = DateTime.UtcNow.AddDays(-60);
             var attendanceRecords = await _context.Attendances
@@ -292,17 +297,21 @@ namespace KhairAPI.Services.Implementations
                 .Include(a => a.Halaqa)
                 .ToListAsync();
 
-            var memorizationRecords = allProgressRecords.Where(p => p.Type == ProgressType.Memorization).ToList();
-            var revisionRecords = allProgressRecords.Where(p => p.Type == ProgressType.Revision).ToList();
-
-            var totalVersesMemorized = memorizationRecords.Sum(p => p.ToVerse - p.FromVerse + 1);
-            var totalVersesRevised = revisionRecords.Sum(p => p.ToVerse - p.FromVerse + 1);
+            // Compute aggregate stats in the database rather than in memory, so the
+            // full record set never has to be loaded (uses the StudentId index).
+            var totalVersesMemorized = await baseProgressQuery
+                .Where(p => p.Type == ProgressType.Memorization)
+                .SumAsync(p => (int?)(p.ToVerse - p.FromVerse + 1)) ?? 0;
+            var totalVersesRevised = await baseProgressQuery
+                .Where(p => p.Type == ProgressType.Revision)
+                .SumAsync(p => (int?)(p.ToVerse - p.FromVerse + 1)) ?? 0;
+            var totalProgressRecords = await baseProgressQuery.CountAsync();
 
             double averageQuality = 0;
             string averageQualityText = "غير محدد";
-            if (allProgressRecords.Any())
+            if (totalProgressRecords > 0)
             {
-                averageQuality = allProgressRecords.Average(p => (int)p.Quality);
+                averageQuality = await baseProgressQuery.AverageAsync(p => (double)(int)p.Quality);
                 averageQualityText = averageQuality switch
                 {
                     < 0.5 => "ممتاز",
@@ -351,7 +360,7 @@ namespace KhairAPI.Services.Implementations
                     TotalClassDays = totalClassDays,
                     AverageQuality = Math.Round(averageQuality, 2),
                     AverageQualityText = averageQualityText,
-                    TotalProgressRecords = allProgressRecords.Count
+                    TotalProgressRecords = totalProgressRecords
                 },
                 RecentProgress = progressRecords.Select(p => new ProgressRecordDto
                 {
