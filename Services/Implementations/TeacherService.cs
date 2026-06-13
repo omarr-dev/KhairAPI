@@ -21,6 +21,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<IEnumerable<TeacherDto>> GetAllTeachersAsync()
         {
             var teachers = await _context.Teachers
+                .AsNoTracking()
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                 .Include(t => t.StudentHalaqat)
@@ -36,6 +37,7 @@ namespace KhairAPI.Services.Implementations
                 return Enumerable.Empty<TeacherDto>();
 
             var teachers = await _context.Teachers
+                .AsNoTracking()
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                 .Include(t => t.StudentHalaqat)
@@ -49,6 +51,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<PaginatedResponse<TeacherDto>> GetTeachersPaginatedAsync(TeacherFilterDto filter)
         {
             var query = _context.Teachers
+                .AsNoTracking()
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                 .Include(t => t.StudentHalaqat)
@@ -115,6 +118,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<TeacherDto?> GetTeacherByIdAsync(int id)
         {
             var teacher = await _context.Teachers
+                .AsNoTracking()
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                 .Include(t => t.StudentHalaqat)
@@ -128,6 +132,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<IEnumerable<TeacherDto>> GetTeachersByHalaqaAsync(int halaqaId)
         {
             var teachers = await _context.HalaqaTeachers
+                .AsNoTracking()
                 .Where(ht => ht.HalaqaId == halaqaId)
                 .Include(ht => ht.Teacher)
                     .ThenInclude(t => t.User)

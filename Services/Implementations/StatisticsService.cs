@@ -24,9 +24,9 @@ namespace KhairAPI.Services.Implementations
         {
             var today = DateTime.UtcNow.Date;
 
-            var studentQuery = _context.Students.AsQueryable();
-            var progressQuery = _context.ProgressRecords.Where(p => p.Date == today);
-            var attendanceQuery = _context.Attendances.Where(a => a.Date == today);
+            var studentQuery = _context.Students.AsNoTracking().AsQueryable();
+            var progressQuery = _context.ProgressRecords.AsNoTracking().Where(p => p.Date == today);
+            var attendanceQuery = _context.Attendances.AsNoTracking().Where(a => a.Date == today);
 
             if (teacherId.HasValue)
             {
@@ -275,6 +275,7 @@ namespace KhairAPI.Services.Implementations
 
             // Load ALL progress records for the week in ONE query (includes today, yesterday, and week data)
             var weekProgress = await _context.ProgressRecords
+                .AsNoTracking()
                 .Where(p => p.Date >= weekStart && p.Date <= today)
                 .ToListAsync();
 
@@ -342,8 +343,8 @@ namespace KhairAPI.Services.Implementations
             var totalStudents = await _context.Students.CountAsync();
             var totalTeachers = await _context.Teachers.CountAsync();
             var totalHalaqat = await _context.Halaqat.Where(h => h.IsActive).CountAsync();
-            var todayAttendance = await _context.Attendances.Where(a => a.Date == today).ToListAsync();
-            var todayProgress = await _context.ProgressRecords.Where(p => p.Date == today).ToListAsync();
+            var todayAttendance = await _context.Attendances.AsNoTracking().Where(a => a.Date == today).ToListAsync();
+            var todayProgress = await _context.ProgressRecords.AsNoTracking().Where(p => p.Date == today).ToListAsync();
 
             var todayAttendanceRate = todayAttendance.Any()
                 ? (double)todayAttendance.Count(a => a.Status == AttendanceStatus.Present) / todayAttendance.Count * 100

@@ -23,6 +23,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<IEnumerable<HalaqaDto>> GetAllHalaqatAsync(int? teacherId = null, List<int>? supervisedHalaqaIds = null)
         {
             IQueryable<Halaqa> query = _context.Halaqat
+                .AsNoTracking()
                 .Include(h => h.StudentHalaqat)
                 .Include(h => h.HalaqaTeachers)
                 .AsSplitQuery();
@@ -106,6 +107,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<HalaqaDto?> GetHalaqaByIdAsync(int id)
         {
             var halaqa = await _context.Halaqat
+                .AsNoTracking()
                 .Include(h => h.StudentHalaqat)
                 .Include(h => h.HalaqaTeachers)
                 .AsSplitQuery()

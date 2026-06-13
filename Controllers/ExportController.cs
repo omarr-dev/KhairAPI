@@ -19,6 +19,14 @@ namespace KhairAPI.Controllers
             _currentUserService = currentUserService;
         }
 
+        private const int MaxExportRangeDays = 90;
+
+        private static bool IsRangeTooLarge(DateTime from, DateTime to) =>
+            (to - from).TotalDays > MaxExportRangeDays;
+
+        private IActionResult RangeTooLargeResponse() =>
+            BadRequest(new { message = $"الحد الأقصى لفترة التصدير {MaxExportRangeDays} يوماً" });
+
         private async Task<IEnumerable<int>?> GetEffectiveHalaqaIds(int? requestedHalaqaId)
         {
             var supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
@@ -72,6 +80,7 @@ namespace KhairAPI.Controllers
         {
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
+            if (IsRangeTooLarge(from, to)) return RangeTooLargeResponse();
 
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
             var bytes = await _exportService.ExportAttendanceReportToExcelAsync(from, to, halaqaIds, teacherId);
@@ -88,6 +97,7 @@ namespace KhairAPI.Controllers
         {
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
+            if (IsRangeTooLarge(from, to)) return RangeTooLargeResponse();
 
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
             var bytes = await _exportService.ExportHalaqaPerformanceToExcelAsync(from, to, halaqaIds);
@@ -105,6 +115,7 @@ namespace KhairAPI.Controllers
         {
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
+            if (IsRangeTooLarge(from, to)) return RangeTooLargeResponse();
 
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
             var bytes = await _exportService.ExportTeacherPerformanceToExcelAsync(from, to, halaqaIds, teacherId);
@@ -122,6 +133,7 @@ namespace KhairAPI.Controllers
         {
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : DateTime.UtcNow.AddDays(-30);
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : DateTime.UtcNow;
+            if (IsRangeTooLarge(from, to)) return RangeTooLargeResponse();
 
             var halaqaIds = await GetEffectiveHalaqaIds(halaqaId);
             var bytes = await _exportService.ExportTeacherAttendanceReportAsync(from, to, halaqaIds, teacherId);

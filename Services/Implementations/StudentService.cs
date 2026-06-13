@@ -27,6 +27,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<IEnumerable<StudentDto>> GetAllStudentsAsync()
         {
             var students = await _context.Students
+                .AsNoTracking()
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
@@ -40,6 +41,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<PaginatedResponse<StudentDto>> GetStudentsPaginatedAsync(StudentFilterDto filter)
         {
             var query = _context.Students
+                .AsNoTracking()
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
@@ -106,6 +108,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<IEnumerable<StudentDto>> GetStudentsByHalaqaAsync(int halaqaId)
         {
             var students = await _context.Students
+                .AsNoTracking()
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
@@ -123,6 +126,7 @@ namespace KhairAPI.Services.Implementations
                 return Enumerable.Empty<StudentDto>();
 
             var students = await _context.Students
+                .AsNoTracking()
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
@@ -240,6 +244,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<StudentDto?> GetStudentByIdAsync(int id)
         {
             var student = await _context.Students
+                .AsNoTracking()
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
@@ -254,6 +259,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<StudentDetailDto?> GetStudentDetailsAsync(int id)
         {
             var student = await _context.Students
+                .AsNoTracking()
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
@@ -269,6 +275,7 @@ namespace KhairAPI.Services.Implementations
             var halaqaId = activeAssignment?.HalaqaId;
 
             var allProgressRecords = await _context.ProgressRecords
+                .AsNoTracking()
                 .Where(p => p.StudentId == id)
                 .OrderByDescending(p => p.Date)
                 .Include(p => p.Teacher)
@@ -279,6 +286,7 @@ namespace KhairAPI.Services.Implementations
 
             var sixtyDaysAgo = DateTime.UtcNow.AddDays(-60);
             var attendanceRecords = await _context.Attendances
+                .AsNoTracking()
                 .Where(a => a.StudentId == id && a.Date >= sixtyDaysAgo)
                 .OrderByDescending(a => a.Date)
                 .Include(a => a.Halaqa)

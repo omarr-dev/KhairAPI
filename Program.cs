@@ -25,6 +25,18 @@ public class Program
         // Add controllers
         builder.Services.AddControllers();
 
+        // Response compression (large JSON payloads: hierarchy, follow-up, statistics)
+        builder.Services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+            options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+        });
+        builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(o =>
+            o.Level = System.IO.Compression.CompressionLevel.Fastest);
+        builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o =>
+            o.Level = System.IO.Compression.CompressionLevel.Fastest);
+
         // Configure PostgreSQL with Entity Framework
         builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -124,6 +136,7 @@ builder.Services.AddCors(options =>
         builder.Services.AddHangfireServices(builder.Configuration);
 
         var app = builder.Build();
+        app.UseResponseCompression();
         app.UseCors();
 
         // Configure the HTTP request pipeline

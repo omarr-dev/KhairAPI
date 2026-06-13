@@ -21,6 +21,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<byte[]> ExportStudentsToExcelAsync(IEnumerable<int>? halaqaIds = null, int? teacherId = null)
         {
             var query = _context.Students
+                .AsNoTracking()
                 .Include(s => s.StudentHalaqat)
                     .ThenInclude(sh => sh.Halaqa)
                 .Include(s => s.StudentHalaqat)
@@ -83,6 +84,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<byte[]> ExportTeachersToExcelAsync(IEnumerable<int>? halaqaIds = null)
         {
             var query = _context.Teachers
+                .AsNoTracking()
                 .Include(t => t.User)
                 .Include(t => t.HalaqaTeachers)
                     .ThenInclude(ht => ht.Halaqa)
@@ -136,6 +138,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<byte[]> ExportAttendanceReportToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null, int? teacherId = null)
         {
             var query = _context.Attendances
+                .AsNoTracking()
                 .Include(a => a.Student)
                 .Include(a => a.Halaqa)
                 .AsSplitQuery()
@@ -233,6 +236,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<byte[]> ExportHalaqaPerformanceToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null)
         {
             var halaqatQuery = _context.Halaqat
+                .AsNoTracking()
                 .Where(h => h.IsActive)
                 .Include(h => h.StudentHalaqat)
                 .Include(h => h.HalaqaTeachers)
@@ -246,6 +250,7 @@ namespace KhairAPI.Services.Implementations
             var halaqat = await halaqatQuery.ToListAsync();
 
             var attendancesQuery = _context.Attendances
+                .AsNoTracking()
                 .Where(a => a.Date >= fromDate && a.Date <= toDate);
 
             if (halaqaIds != null && halaqaIds.Any())
@@ -256,6 +261,7 @@ namespace KhairAPI.Services.Implementations
             var attendances = await attendancesQuery.ToListAsync();
 
             var progressRecordsQuery = _context.ProgressRecords
+                .AsNoTracking()
                 .Where(p => p.Date >= fromDate && p.Date <= toDate);
 
             if (halaqaIds != null && halaqaIds.Any())
@@ -312,6 +318,7 @@ namespace KhairAPI.Services.Implementations
         public async Task<byte[]> ExportTeacherPerformanceToExcelAsync(DateTime fromDate, DateTime toDate, IEnumerable<int>? halaqaIds = null, int? teacherId = null)
         {
             var teachersQuery = _context.Teachers
+                .AsNoTracking()
                 .Include(t => t.StudentHalaqat)
                 .AsQueryable();
 
@@ -346,11 +353,13 @@ namespace KhairAPI.Services.Implementations
             // Bulk load all attendance for the target date range for all students of these teachers
             // To be precise, we fetch all attendance for the period and filter in-memory
             var allAttendances = await _context.Attendances
+                .AsNoTracking()
                 .Where(a => a.Date >= fromDate && a.Date <= toDate)
                 .ToListAsync();
 
             // Bulk load all progress records for these teachers in the date range
             var allProgressRecords = await _context.ProgressRecords
+                .AsNoTracking()
                 .Where(p => p.Date >= fromDate && p.Date <= toDate && p.TeacherId != null && teacherIds.Contains(p.TeacherId.Value))
                 .ToListAsync();
 
@@ -416,6 +425,7 @@ namespace KhairAPI.Services.Implementations
             var effectiveEndDate = endDate.Date > today ? today.AddDays(1).AddSeconds(-1) : endDate;
 
             var teachersQuery = _context.Teachers
+                .AsNoTracking()
                 .Include(t => t.HalaqaTeachers)
                     .ThenInclude(ht => ht.Halaqa)
                 .AsSplitQuery()
@@ -434,6 +444,7 @@ namespace KhairAPI.Services.Implementations
             var teachers = await teachersQuery.OrderBy(t => t.FullName).ToListAsync();
 
             var attendanceRecords = await _context.TeacherAttendances
+                .AsNoTracking()
                 .Where(ta => ta.Date >= startDate && ta.Date <= endDate)
                 .ToListAsync();
 
