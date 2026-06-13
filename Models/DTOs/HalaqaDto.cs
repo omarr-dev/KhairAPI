@@ -88,4 +88,12 @@ namespace KhairAPI.Models.DTOs
         public int CurrentVerse { get; set; }
         public decimal JuzMemorized { get; set; }
     }
+
+    /// <summary>
+    /// Student info for on-demand loading per halaqa, with the teacher assignment
+    /// </summary>
+    public class StudentInHalaqaWithTeacherDto : StudentInHalaqaDto
+    {
+        public int TeacherId { get; set; }
+    }
 }

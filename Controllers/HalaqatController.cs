@@ -65,6 +65,25 @@ namespace KhairAPI.Controllers
             return Ok(fullHierarchy);
         }
 
+        /// <summary>
+        /// Lightweight list of active students in a halaqa (with their teacher assignment).
+        /// Used by the hierarchy view to load students on demand.
+        /// </summary>
+        [HttpGet("{id}/students")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
+        public async Task<IActionResult> GetHalaqaStudents(int id)
+        {
+            if (_currentUserService.IsHalaqaSupervisor)
+            {
+                var canAccess = await _currentUserService.CanAccessHalaqaAsync(id);
+                if (!canAccess)
+                    return Forbid();
+            }
+
+            var students = await _halaqaService.GetHalaqaStudentsAsync(id);
+            return Ok(students);
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> GetHalaqaById(int id)
         {

@@ -47,12 +47,12 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<IEnumerable<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync(List<int>? supervisedHalaqaIds = null)
         {
+            // Students are intentionally NOT loaded here; clients fetch them
+            // on demand via GetHalaqaStudentsAsync to keep this payload small.
             var query = _context.Halaqat
+                .AsNoTracking()
                 .Include(h => h.HalaqaTeachers)
                     .ThenInclude(ht => ht.Teacher)
-                .Include(h => h.StudentHalaqat)
-                    .ThenInclude(sh => sh.Student)
-                .AsSplitQuery()
                 .Where(h => h.IsActive);
 
             // Filter by supervised halaqas if specified (for HalaqaSupervisors)
@@ -65,6 +65,26 @@ namespace KhairAPI.Services.Implementations
                 .OrderBy(h => h.Name)
                 .ToListAsync();
 
+            // Single grouped query for active student counts per (halaqa, teacher)
+            var countsQuery = _context.StudentHalaqat
+                .AsNoTracking()
+                .Where(sh => sh.IsActive);
+
+            if (supervisedHalaqaIds != null)
+            {
+                countsQuery = countsQuery.Where(sh => supervisedHalaqaIds.Contains(sh.HalaqaId));
+            }
+
+            var counts = await countsQuery
+                .GroupBy(sh => new { sh.HalaqaId, sh.TeacherId })
+                .Select(g => new { g.Key.HalaqaId, g.Key.TeacherId, Count = g.Count() })
+                .ToListAsync();
+
+            var countByHalaqaTeacher = counts.ToDictionary(c => (c.HalaqaId, c.TeacherId), c => c.Count);
+            var countByHalaqa = counts
+                .GroupBy(c => c.HalaqaId)
+                .ToDictionary(g => g.Key, g => g.Sum(c => c.Count));
+
             return halaqat.Select(h => new HalaqaHierarchyDto
             {
                 Id = h.Id,
@@ -73,35 +93,52 @@ namespace KhairAPI.Services.Implementations
                 TimeSlot = h.TimeSlot,
                 ActiveDays = h.ActiveDays,
                 IsActive = h.IsActive,
-                StudentCount = h.StudentHalaqat.Count(sh => sh.IsActive),
+                StudentCount = countByHalaqa.GetValueOrDefault(h.Id),
                 TeacherCount = h.HalaqaTeachers.Count,
                 Teachers = h.HalaqaTeachers.Select(ht => new TeacherInHalaqaDto
                 {
                     Id = ht.Teacher.Id,
                     FullName = ht.Teacher.FullName,
                     PhoneNumber = ht.Teacher.PhoneNumber,
-                    StudentCount = h.StudentHalaqat.Count(sh => sh.IsActive && sh.TeacherId == ht.TeacherId),
-                    Students = h.StudentHalaqat
-                        .Where(sh => sh.IsActive && sh.TeacherId == ht.TeacherId)
-                        .Select(sh => new StudentInHalaqaDto
-                        {
-                            Id = sh.Student.Id,
-                            FullName = $"{sh.Student.FirstName} {sh.Student.LastName}",
-                            MemorizationDirection = sh.Student.MemorizationDirection.ToString(),
-                            CurrentSurahNumber = sh.Student.CurrentSurahNumber,
-                            CurrentSurahName = _quranService.GetSurahByNumber(sh.Student.CurrentSurahNumber)?.Name,
-                            CurrentVerse = sh.Student.CurrentVerse,
-                            JuzMemorized = _quranService.CalculateJuzMemorized(
-                                sh.Student.MemorizationDirection,
-                                sh.Student.CurrentSurahNumber,
-                                sh.Student.CurrentVerse)
-                        })
-                        .OrderBy(s => s.FullName)
-                        .ToList()
+                    StudentCount = countByHalaqaTeacher.GetValueOrDefault((h.Id, ht.TeacherId)),
+                    Students = new List<StudentInHalaqaDto>()
                 })
                 .OrderBy(t => t.FullName)
                 .ToList()
             }).ToList();
+        }
+
+        public async Task<List<StudentInHalaqaWithTeacherDto>> GetHalaqaStudentsAsync(int halaqaId)
+        {
+            var rows = await _context.StudentHalaqat
+                .AsNoTracking()
+                .Where(sh => sh.HalaqaId == halaqaId && sh.IsActive)
+                .Select(sh => new
+                {
+                    sh.TeacherId,
+                    sh.Student.Id,
+                    sh.Student.FirstName,
+                    sh.Student.LastName,
+                    sh.Student.MemorizationDirection,
+                    sh.Student.CurrentSurahNumber,
+                    sh.Student.CurrentVerse,
+                    sh.Student.JuzMemorized
+                })
+                .ToListAsync();
+
+            return rows.Select(r => new StudentInHalaqaWithTeacherDto
+                {
+                    Id = r.Id,
+                    TeacherId = r.TeacherId,
+                    FullName = $"{r.FirstName} {r.LastName}",
+                    MemorizationDirection = r.MemorizationDirection.ToString(),
+                    CurrentSurahNumber = r.CurrentSurahNumber,
+                    CurrentSurahName = _quranService.GetSurahByNumber(r.CurrentSurahNumber)?.Name,
+                    CurrentVerse = r.CurrentVerse,
+                    JuzMemorized = r.JuzMemorized
+                })
+                .OrderBy(s => s.FullName)
+                .ToList();
         }
 
         public async Task<HalaqaDto?> GetHalaqaByIdAsync(int id)
