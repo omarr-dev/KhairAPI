@@ -164,28 +164,51 @@ namespace KhairAPI.Services.Implementations
                 attendanceQuery = attendanceQuery.Where(a => teacherStudentIds.Contains(a.StudentId));
             }
 
-            var progressRecords = await progressQuery.ToListAsync();
-            var attendanceRecords = await attendanceQuery.ToListAsync();
+            // SQL aggregates instead of materializing every record in memory.
+            // Quality/Status/Type are stored as strings, so averages are derived
+            // in memory from grouped counts.
+            var dailyProgressAgg = await progressQuery
+                .GroupBy(p => new { p.Date, p.Type })
+                .Select(g => new { g.Key.Date, g.Key.Type, Count = g.Count() })
+                .ToListAsync();
+
+            var dailyAttendanceAgg = await attendanceQuery
+                .GroupBy(a => new { a.Date, a.Status })
+                .Select(g => new { g.Key.Date, g.Key.Status, Count = g.Count() })
+                .ToListAsync();
+
+            var studentQualityAgg = await progressQuery
+                .GroupBy(p => new { p.StudentId, p.Quality })
+                .Select(g => new { g.Key.StudentId, g.Key.Quality, Count = g.Count() })
+                .ToListAsync();
+
             var totalStudents = await studentQuery.CountAsync();
+
+            var progressByDate = dailyProgressAgg
+                .GroupBy(x => x.Date.Date)
+                .ToDictionary(g => g.Key, g => g.ToList());
+            var attendanceByDate = dailyAttendanceAgg
+                .GroupBy(x => x.Date.Date)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
             var progressData = new List<DailyChartDataDto>();
             var attendanceData = new List<DailyChartDataDto>();
 
             for (var date = fromDate; date <= toDate; date = date.AddDays(1))
             {
-                var dayProgress = progressRecords.Where(p => p.Date == date).ToList();
-                var dayAttendance = attendanceRecords.Where(a => a.Date == date).ToList();
+                progressByDate.TryGetValue(date, out var dayProgress);
+                attendanceByDate.TryGetValue(date, out var dayAttendance);
 
                 progressData.Add(new DailyChartDataDto
                 {
                     Date = AppConstants.ArabicDayNames.GetDayName(date.DayOfWeek),
-                    Memorization = dayProgress.Count(p => p.Type == ProgressType.Memorization),
-                    Revision = dayProgress.Count(p => p.Type == ProgressType.Revision),
+                    Memorization = dayProgress?.Where(p => p.Type == ProgressType.Memorization).Sum(p => p.Count) ?? 0,
+                    Revision = dayProgress?.Where(p => p.Type == ProgressType.Revision).Sum(p => p.Count) ?? 0,
                     Rate = 0
                 });
 
-                var totalDayAttendance = dayAttendance.Count;
-                var presentCount = dayAttendance.Count(a => a.Status == AttendanceStatus.Present);
+                var totalDayAttendance = dayAttendance?.Sum(a => a.Count) ?? 0;
+                var presentCount = dayAttendance?.Where(a => a.Status == AttendanceStatus.Present).Sum(a => a.Count) ?? 0;
                 var rate = totalDayAttendance > 0 ? (double)presentCount / totalDayAttendance * 100 : 0;
 
                 attendanceData.Add(new DailyChartDataDto
@@ -197,13 +220,13 @@ namespace KhairAPI.Services.Implementations
                 });
             }
 
-            var studentProgress = progressRecords
-                .GroupBy(p => p.StudentId)
+            var studentProgress = studentQualityAgg
+                .GroupBy(x => x.StudentId)
                 .Select(g => new
                 {
                     StudentId = g.Key,
-                    Count = g.Count(),
-                    AvgQuality = g.Average(p => (int)p.Quality)
+                    Count = g.Sum(x => x.Count),
+                    AvgQuality = g.Sum(x => (int)x.Quality * (double)x.Count) / g.Sum(x => x.Count)
                 })
                 .OrderByDescending(x => x.Count)
                 .Take(5)
@@ -211,6 +234,7 @@ namespace KhairAPI.Services.Implementations
 
             var topStudentIds = studentProgress.Select(s => s.StudentId).ToList();
             var students = await _context.Students
+                .AsNoTracking()
                 .Where(s => topStudentIds.Contains(s.Id))
                 .ToDictionaryAsync(s => s.Id);
 
@@ -223,31 +247,32 @@ namespace KhairAPI.Services.Implementations
                 Quality = Math.Round(4 - sp.AvgQuality, 1)
             }).ToList();
 
-            var qualityGroups = progressRecords
-                .GroupBy(p => p.Quality)
-                .Select(g => new { Quality = g.Key, Count = g.Count() })
-                .ToList();
+            var qualityCounts = studentQualityAgg
+                .GroupBy(x => x.Quality)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Count));
 
             var qualityDistribution = new List<QualityDistributionDto>
             {
-                new() { Name = "ممتاز", Value = qualityGroups.FirstOrDefault(q => q.Quality == QualityRating.Excellent)?.Count ?? 0, Color = "#10B981" },
-                new() { Name = "جيد جداً", Value = qualityGroups.FirstOrDefault(q => q.Quality == QualityRating.VeryGood)?.Count ?? 0, Color = "#3B82F6" },
-                new() { Name = "جيد", Value = qualityGroups.FirstOrDefault(q => q.Quality == QualityRating.Good)?.Count ?? 0, Color = "#F59E0B" },
-                new() { Name = "مقبول", Value = qualityGroups.FirstOrDefault(q => q.Quality == QualityRating.Acceptable)?.Count ?? 0, Color = "#EF4444" }
+                new() { Name = "ممتاز", Value = qualityCounts.GetValueOrDefault(QualityRating.Excellent), Color = "#10B981" },
+                new() { Name = "جيد جداً", Value = qualityCounts.GetValueOrDefault(QualityRating.VeryGood), Color = "#3B82F6" },
+                new() { Name = "جيد", Value = qualityCounts.GetValueOrDefault(QualityRating.Good), Color = "#F59E0B" },
+                new() { Name = "مقبول", Value = qualityCounts.GetValueOrDefault(QualityRating.Acceptable), Color = "#EF4444" }
             };
 
-            var totalAttendance = attendanceRecords.Count;
-            var presentTotal = attendanceRecords.Count(a => a.Status == AttendanceStatus.Present);
+            var totalAttendance = dailyAttendanceAgg.Sum(a => a.Count);
+            var presentTotal = dailyAttendanceAgg.Where(a => a.Status == AttendanceStatus.Present).Sum(a => a.Count);
             var avgAttendance = totalAttendance > 0 ? (double)presentTotal / totalAttendance * 100 : 0;
-            var avgQuality = progressRecords.Any()
-                ? Math.Round(4 - progressRecords.Average(p => (int)p.Quality) + 1, 1)
+
+            var totalProgressCount = studentQualityAgg.Sum(x => x.Count);
+            var avgQuality = totalProgressCount > 0
+                ? Math.Round(4 - studentQualityAgg.Sum(x => (int)x.Quality * (double)x.Count) / totalProgressCount + 1, 1)
                 : 0;
 
             return new ReportStatsDto
             {
                 TotalStudents = totalStudents,
                 AverageAttendance = Math.Round(avgAttendance, 1),
-                WeeklyMemorization = progressRecords.Count(p => p.Type == ProgressType.Memorization),
+                WeeklyMemorization = dailyProgressAgg.Where(p => p.Type == ProgressType.Memorization).Sum(p => p.Count),
                 AverageQuality = avgQuality,
                 ProgressData = progressData,
                 AttendanceData = attendanceData,
@@ -389,37 +414,77 @@ namespace KhairAPI.Services.Implementations
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-days);
 
-            var halaqat = await _context.Halaqat
-                .Where(h => h.IsActive)
-                .Include(h => h.StudentHalaqat)
-                .Include(h => h.HalaqaTeachers)
+            var halaqatQuery = _context.Halaqat
+                .AsNoTracking()
+                .Where(h => h.IsActive);
+
+            var attendanceQuery = _context.Attendances
+                .AsNoTracking()
+                .Where(a => a.Date >= fromDate && a.Date <= today);
+
+            var progressQuery = _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => p.Date >= fromDate && p.Date <= today);
+
+            if (halaqaFilter != null)
+            {
+                halaqatQuery = halaqatQuery.Where(h => halaqaFilter.Contains(h.Id));
+                attendanceQuery = attendanceQuery.Where(a => halaqaFilter.Contains(a.HalaqaId));
+                progressQuery = progressQuery.Where(p => halaqaFilter.Contains(p.HalaqaId));
+            }
+
+            // Projection with SQL subquery counts instead of loading full entity graphs
+            var halaqat = await halaqatQuery
+                .Select(h => new
+                {
+                    h.Id,
+                    h.Name,
+                    StudentCount = h.StudentHalaqat.Count(sh => sh.IsActive),
+                    TeacherCount = h.HalaqaTeachers.Count
+                })
                 .ToListAsync();
 
-            var attendances = await _context.Attendances
-                .Where(a => a.Date >= fromDate && a.Date <= today)
+            // SQL aggregates grouped by halaqa instead of per-halaqa in-memory scans
+            var attendanceByHalaqa = (await attendanceQuery
+                .GroupBy(a => a.HalaqaId)
+                .Select(g => new
+                {
+                    HalaqaId = g.Key,
+                    Total = g.Count(),
+                    Present = g.Count(a => a.Status == AttendanceStatus.Present)
+                })
+                .ToListAsync())
+                .ToDictionary(x => x.HalaqaId);
+
+            var progressByHalaqaType = await progressQuery
+                .GroupBy(p => new { p.HalaqaId, p.Type })
+                .Select(g => new
+                {
+                    g.Key.HalaqaId,
+                    g.Key.Type,
+                    Count = g.Count(),
+                    Verses = g.Sum(p => p.ToVerse - p.FromVerse + 1)
+                })
                 .ToListAsync();
 
-            var progressRecords = await _context.ProgressRecords
-                .Where(p => p.Date >= fromDate && p.Date <= today)
-                .ToListAsync();
+            var progressByHalaqa = progressByHalaqaType
+                .GroupBy(x => x.HalaqaId)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
             var rankings = halaqat.Select(h =>
             {
-                var halaqaAttendance = attendances.Where(a => a.HalaqaId == h.Id).ToList();
-                var halaqaProgress = progressRecords.Where(p => p.HalaqaId == h.Id).ToList();
-                var studentCount = h.StudentHalaqat.Count(sh => sh.IsActive);
+                attendanceByHalaqa.TryGetValue(h.Id, out var att);
+                progressByHalaqa.TryGetValue(h.Id, out var halaqaProgress);
 
-                var attendanceRate = halaqaAttendance.Any()
-                    ? (double)halaqaAttendance.Count(a => a.Status == AttendanceStatus.Present) / halaqaAttendance.Count * 100
+                var attendanceRate = att != null && att.Total > 0
+                    ? (double)att.Present / att.Total * 100
                     : 0;
 
-                var totalVerses = halaqaProgress.Sum(p =>
-                {
-                    var verses = Math.Max(0, p.ToVerse - p.FromVerse + 1);
-                    return p.Type == ProgressType.Memorization ? verses : verses * 0.5;
-                });
+                var totalVerses = halaqaProgress?.Sum(p =>
+                    p.Type == ProgressType.Memorization ? (double)p.Verses : p.Verses * 0.5) ?? 0;
 
-                var versesPerStudent = studentCount > 0 ? totalVerses / studentCount : 0;
+                var progressCount = halaqaProgress?.Sum(p => p.Count) ?? 0;
+                var versesPerStudent = h.StudentCount > 0 ? totalVerses / h.StudentCount : 0;
                 var progressScore = Math.Min(versesPerStudent * 2, 40);
                 var score = (attendanceRate * 0.6) + (progressScore * 0.4);
 
@@ -427,10 +492,10 @@ namespace KhairAPI.Services.Implementations
                 {
                     Id = h.Id,
                     Name = h.Name,
-                    StudentCount = studentCount,
-                    TeacherCount = h.HalaqaTeachers.Count,
+                    StudentCount = h.StudentCount,
+                    TeacherCount = h.TeacherCount,
                     AttendanceRate = Math.Round(attendanceRate, 1),
-                    WeeklyProgress = halaqaProgress.Count,
+                    WeeklyProgress = progressCount,
                     Score = Math.Round(score, 1)
                 };
             })
@@ -462,54 +527,94 @@ namespace KhairAPI.Services.Implementations
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-days);
 
-            // Load all teachers with their student relationships
-            var teachers = await _context.Teachers
-                .Include(t => t.StudentHalaqat)
+            // Active student assignments per teacher (projection, no entity graphs)
+            var assignmentsQuery = _context.StudentHalaqat
+                .AsNoTracking()
+                .Where(sh => sh.IsActive);
+
+            if (halaqaFilter != null)
+            {
+                assignmentsQuery = assignmentsQuery.Where(sh => halaqaFilter.Contains(sh.HalaqaId));
+            }
+
+            var assignments = await assignmentsQuery
+                .Select(sh => new { sh.TeacherId, sh.StudentId, TeacherName = sh.Teacher!.FullName })
                 .ToListAsync();
 
-            // Batch load ALL attendance records for the date range (eliminates N queries)
-            var allAttendances = await _context.Attendances
+            var teacherGroups = assignments
+                .GroupBy(a => a.TeacherId)
+                .Select(g => new
+                {
+                    TeacherId = g.Key,
+                    FullName = g.First().TeacherName,
+                    StudentIds = g.Select(a => a.StudentId).ToHashSet()
+                })
+                .ToList();
+
+            // Attendance aggregated per student in SQL, summed per teacher in memory
+            var attendanceByStudent = (await _context.Attendances
+                .AsNoTracking()
                 .Where(a => a.Date >= fromDate && a.Date <= today)
+                .GroupBy(a => a.StudentId)
+                .Select(g => new
+                {
+                    StudentId = g.Key,
+                    Total = g.Count(),
+                    Present = g.Count(a => a.Status == AttendanceStatus.Present)
+                })
+                .ToListAsync())
+                .ToDictionary(x => x.StudentId);
+
+            // Progress aggregated per (teacher, type, quality) in SQL.
+            // Quality is stored as a string, so the average is computed in memory
+            // from these grouped counts.
+            var progressGroups = await _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => p.Date >= fromDate && p.Date <= today && p.TeacherId != null)
+                .GroupBy(p => new { p.TeacherId, p.Type, p.Quality })
+                .Select(g => new
+                {
+                    g.Key.TeacherId,
+                    g.Key.Type,
+                    g.Key.Quality,
+                    Count = g.Count(),
+                    Verses = g.Sum(p => p.ToVerse - p.FromVerse + 1)
+                })
                 .ToListAsync();
 
-            // Batch load ALL progress records for the date range (eliminates N queries)
-            var allProgressRecords = await _context.ProgressRecords
-                .Where(p => p.Date >= fromDate && p.Date <= today)
-                .ToListAsync();
+            var progressByTeacher = progressGroups
+                .GroupBy(x => x.TeacherId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
             var rankings = new List<TeacherRankingDto>();
 
-            foreach (var teacher in teachers)
+            foreach (var teacher in teacherGroups)
             {
-                var studentIds = teacher.StudentHalaqat
-                    .Where(sh => sh.IsActive)
-                    .Select(sh => sh.StudentId)
-                    .ToHashSet(); // Use HashSet for O(1) lookups
+                var studentIds = teacher.StudentIds;
 
-                if (!studentIds.Any()) continue;
-
-                // Filter in-memory (fast O(n) operation)
-                var studentAttendance = allAttendances
-                    .Where(a => studentIds.Contains(a.StudentId))
-                    .ToList();
-
-                var teacherProgress = allProgressRecords
-                    .Where(p => p.TeacherId == teacher.Id)
-                    .ToList();
-
-                var attendanceRate = studentAttendance.Any()
-                    ? (double)studentAttendance.Count(a => a.Status == AttendanceStatus.Present) / studentAttendance.Count * 100
-                    : 0;
-
-                var avgQuality = teacherProgress.Any()
-                    ? teacherProgress.Average(p => 4 - (int)p.Quality)
-                    : 0;
-
-                var totalVerses = teacherProgress.Sum(p =>
+                long attTotal = 0, attPresent = 0;
+                foreach (var studentId in studentIds)
                 {
-                    var verses = Math.Max(0, p.ToVerse - p.FromVerse + 1);
-                    return p.Type == ProgressType.Memorization ? verses : verses * 0.5;
-                });
+                    if (attendanceByStudent.TryGetValue(studentId, out var att))
+                    {
+                        attTotal += att.Total;
+                        attPresent += att.Present;
+                    }
+                }
+
+                var attendanceRate = attTotal > 0
+                    ? (double)attPresent / attTotal * 100
+                    : 0;
+
+                progressByTeacher.TryGetValue(teacher.TeacherId, out var teacherProgress);
+                var progressCount = teacherProgress?.Sum(p => p.Count) ?? 0;
+
+                var avgQuality = progressCount > 0
+                    ? teacherProgress!.Sum(p => (4 - (int)p.Quality) * (double)p.Count) / progressCount
+                    : 0;
+
+                var totalVerses = teacherProgress?.Sum(p =>
+                    p.Type == ProgressType.Memorization ? (double)p.Verses : p.Verses * 0.5) ?? 0;
 
                 var versesPerStudent = studentIds.Count > 0 ? totalVerses / studentIds.Count : 0;
                 var progressScore = Math.Min(versesPerStudent * 2, 30);
@@ -517,11 +622,11 @@ namespace KhairAPI.Services.Implementations
 
                 rankings.Add(new TeacherRankingDto
                 {
-                    Id = teacher.Id,
+                    Id = teacher.TeacherId,
                     FullName = teacher.FullName,
                     StudentCount = studentIds.Count,
                     StudentAttendanceRate = Math.Round(attendanceRate, 1),
-                    WeeklyProgress = teacherProgress.Count,
+                    WeeklyProgress = progressCount,
                     AverageQuality = Math.Round(avgQuality, 1),
                     Score = Math.Round(score, 1)
                 });
@@ -537,199 +642,108 @@ namespace KhairAPI.Services.Implementations
 
         private async Task<List<AtRiskStudentDto>> GetAtRiskStudentsInternalAsync(int limit = 20, List<int>? halaqaFilter = null)
         {
-            var today = DateTime.UtcNow.Date;
-            var fromDate = today.AddDays(-30);
-
-            // Load all students with their halaqa assignments
-            var studentsQuery = _context.Students
-                .Include(s => s.StudentHalaqat)
-                    .ThenInclude(sh => sh.Halaqa)
-                .Include(s => s.StudentHalaqat)
-                    .ThenInclude(sh => sh.Teacher)
-                .Where(s => s.StudentHalaqat.Any(sh => sh.IsActive));
+            IQueryable<StudentHalaqa> assignments = _context.StudentHalaqat;
 
             if (halaqaFilter != null)
             {
-                studentsQuery = studentsQuery
-                    .Where(s => s.StudentHalaqat.Any(sh => sh.IsActive && halaqaFilter.Contains(sh.HalaqaId)));
+                assignments = assignments.Where(sh => halaqaFilter.Contains(sh.HalaqaId));
             }
 
-            var students = await studentsQuery.ToListAsync();
-
-            var studentIds = students.Select(s => s.Id).ToHashSet();
-
-            // Batch load ALL attendance for these students in the date range (eliminates N queries)
-            var allAttendances = await _context.Attendances
-                .Where(a => studentIds.Contains(a.StudentId) && a.Date >= fromDate && a.Date <= today)
-                .ToListAsync();
-
-            // Batch load the LATEST progress record for each student (eliminates N queries)
-            // We get all progress records and then find the latest per student in-memory
-            var allProgressRecords = await _context.ProgressRecords
-                .Where(p => studentIds.Contains(p.StudentId))
-                .ToListAsync();
-
-            // Group progress by student and get the latest for each
-            var latestProgressByStudent = allProgressRecords
-                .GroupBy(p => p.StudentId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.Date).FirstOrDefault());
-
-            // Group attendance by student for quick lookup
-            var attendanceByStudent = allAttendances
-                .GroupBy(a => a.StudentId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(a => a.Date).ToList());
-
-            var atRiskStudents = new List<AtRiskStudentDto>();
-
-            foreach (var student in students)
-            {
-                var activeAssignment = student.StudentHalaqat.FirstOrDefault(sh => sh.IsActive);
-                if (activeAssignment == null) continue;
-
-                // Get attendance from in-memory dictionary (O(1) lookup)
-                var studentAttendance = attendanceByStudent.TryGetValue(student.Id, out var att) ? att : new List<Attendance>();
-
-                // Get latest progress from in-memory dictionary (O(1) lookup)
-                var lastProgress = latestProgressByStudent.TryGetValue(student.Id, out var prog) ? prog : null;
-
-                // For new students without progress, use their creation date instead of 999
-                var daysSinceProgress = lastProgress != null
-                    ? (today - lastProgress.Date).Days
-                    : (today - student.CreatedAt.Date).Days;
-
-                // Simple logic: Count consecutive absences on scheduled days only (ignore missing records)
-                var activeDays = ParseActiveDays(activeAssignment.Halaqa?.ActiveDays);
-                var enrollmentDate = activeAssignment.EnrollmentDate.Date;
-                var consecutiveAbsences = 0;
-                var currentCheckDate = today;
-
-                // Go backwards through scheduled days and count consecutive absences
-                while ((today - currentCheckDate).Days < 30 && currentCheckDate >= enrollmentDate)
-                {
-                    if (activeDays.Contains((int)currentCheckDate.DayOfWeek))
-                    {
-                        var record = studentAttendance.FirstOrDefault(a => a.Date.Date == currentCheckDate.Date);
-
-                        // Only count explicit Absent records (ignore missing records)
-                        if (record != null && record.Status == AttendanceStatus.Absent)
-                        {
-                            consecutiveAbsences++;
-                        }
-                        else if (record != null && record.Status == AttendanceStatus.Present)
-                        {
-                            // Stop counting when we hit a present record
-                            break;
-                        }
-                        // If no record (missing), ignore and continue checking older dates
-                    }
-                    currentCheckDate = currentCheckDate.AddDays(-1);
-                }
-
-                // Flag as at-risk if 3 or more consecutive absences
-                if (consecutiveAbsences >= 3)
-                {
-                    atRiskStudents.Add(new AtRiskStudentDto
-                    {
-                        Id = student.Id,
-                        FullName = $"{student.FirstName} {student.LastName}",
-                        HalaqaName = activeAssignment.Halaqa?.Name ?? "",
-                        TeacherName = activeAssignment.Teacher?.FullName ?? "",
-                        AttendanceRate = 0, // Not used anymore, will show consecutive absences instead
-                        DaysSinceLastProgress = daysSinceProgress,
-                        ConsecutiveAbsences = consecutiveAbsences
-                    });
-                }
-            }
-
-            return atRiskStudents
-                .OrderByDescending(s => s.ConsecutiveAbsences)
-                .ThenBy(s => s.AttendanceRate)
-                .Take(limit)
-                .ToList();
+            return await ComputeAtRiskStudentsAsync(assignments, limit);
         }
 
         public async Task<List<AtRiskStudentDto>> GetTeacherAtRiskStudentsAsync(int teacherId, int limit = 10)
         {
+            var assignments = _context.StudentHalaqat.Where(sh => sh.TeacherId == teacherId);
+            return await ComputeAtRiskStudentsAsync(assignments, limit);
+        }
+
+        private async Task<List<AtRiskStudentDto>> ComputeAtRiskStudentsAsync(IQueryable<StudentHalaqa> assignmentsQuery, int limit)
+        {
             var today = DateTime.UtcNow.Date;
             var fromDate = today.AddDays(-30);
 
-            // Get student IDs for this teacher (use HashSet for O(1) lookups)
-            var studentIdsList = await _context.StudentHalaqat
-                .Where(sh => sh.TeacherId == teacherId && sh.IsActive)
-                .Select(sh => sh.StudentId)
+            // Single projection query: no entity graphs, just the fields needed
+            var assignments = await assignmentsQuery
+                .AsNoTracking()
+                .Where(sh => sh.IsActive)
+                .Select(sh => new
+                {
+                    sh.StudentId,
+                    sh.Student!.FirstName,
+                    sh.Student.LastName,
+                    StudentCreatedAt = sh.Student.CreatedAt,
+                    HalaqaName = sh.Halaqa!.Name,
+                    HalaqaActiveDays = sh.Halaqa.ActiveDays,
+                    TeacherName = sh.Teacher!.FullName,
+                    sh.EnrollmentDate
+                })
                 .ToListAsync();
 
-            var studentIdsSet = studentIdsList.ToHashSet();
-
-            // Load students with their halaqa assignments
-            var students = await _context.Students
-                .Include(s => s.StudentHalaqat)
-                    .ThenInclude(sh => sh.Halaqa)
-                .Include(s => s.StudentHalaqat)
-                    .ThenInclude(sh => sh.Teacher)
-                .Where(s => studentIdsList.Contains(s.Id))
-                .ToListAsync();
-
-            // Batch load ALL attendance for these students in the date range (eliminates N queries)
-            var allAttendances = await _context.Attendances
-                .Where(a => studentIdsSet.Contains(a.StudentId) && a.Date >= fromDate && a.Date <= today)
-                .ToListAsync();
-
-            // Batch load ALL progress records for these students (eliminates N queries)
-            var allProgressRecords = await _context.ProgressRecords
-                .Where(p => studentIdsSet.Contains(p.StudentId))
-                .ToListAsync();
-
-            // Group progress by student and get the latest for each
-            var latestProgressByStudent = allProgressRecords
-                .GroupBy(p => p.StudentId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.Date).FirstOrDefault());
-
-            // Group attendance by student for quick lookup
-            var attendanceByStudent = allAttendances
+            // First active assignment per student (students may have multiple)
+            var assignmentByStudent = assignments
                 .GroupBy(a => a.StudentId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(a => a.Date).ToList());
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var studentIds = assignmentByStudent.Keys.ToHashSet();
+            if (studentIds.Count == 0)
+                return new List<AtRiskStudentDto>();
+
+            // Attendance for the 30-day window, keyed per student per day for O(1) checks
+            var attendanceRows = await _context.Attendances
+                .AsNoTracking()
+                .Where(a => studentIds.Contains(a.StudentId) && a.Date >= fromDate && a.Date <= today)
+                .Select(a => new { a.StudentId, a.Date, a.Status })
+                .ToListAsync();
+
+            var attendanceByStudent = attendanceRows
+                .GroupBy(a => a.StudentId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(a => a.Date.Date).ToDictionary(d => d.Key, d => d.First().Status));
+
+            // Latest progress date per student via SQL aggregate (bounded output)
+            var lastProgressByStudent = (await _context.ProgressRecords
+                .AsNoTracking()
+                .Where(p => studentIds.Contains(p.StudentId))
+                .GroupBy(p => p.StudentId)
+                .Select(g => new { StudentId = g.Key, LastDate = g.Max(p => p.Date) })
+                .ToListAsync())
+                .ToDictionary(x => x.StudentId, x => x.LastDate);
 
             var atRiskStudents = new List<AtRiskStudentDto>();
 
-            foreach (var student in students)
+            foreach (var (studentId, assignment) in assignmentByStudent)
             {
-                var activeAssignment = student.StudentHalaqat.FirstOrDefault(sh => sh.IsActive && sh.TeacherId == teacherId);
-                if (activeAssignment == null) continue;
-
-                // Get attendance from in-memory dictionary (O(1) lookup)
-                var studentAttendance = attendanceByStudent.TryGetValue(student.Id, out var att) ? att : new List<Attendance>();
-
-                // Get latest progress from in-memory dictionary (O(1) lookup)
-                var lastProgress = latestProgressByStudent.TryGetValue(student.Id, out var prog) ? prog : null;
-
                 // For new students without progress, use their creation date instead of 999
-                var daysSinceProgress = lastProgress != null
-                    ? (today - lastProgress.Date).Days
-                    : (today - student.CreatedAt.Date).Days;
+                var daysSinceProgress = lastProgressByStudent.TryGetValue(studentId, out var lastProgressDate)
+                    ? (today - lastProgressDate).Days
+                    : (today - assignment.StudentCreatedAt.Date).Days;
 
                 // Simple logic: Count consecutive absences on scheduled days only (ignore missing records)
-                var activeDays = ParseActiveDays(activeAssignment.Halaqa?.ActiveDays);
-                var enrollmentDate = activeAssignment.EnrollmentDate.Date;
+                var activeDays = ParseActiveDays(assignment.HalaqaActiveDays);
+                var enrollmentDate = assignment.EnrollmentDate.Date;
                 var consecutiveAbsences = 0;
                 var currentCheckDate = today;
+                attendanceByStudent.TryGetValue(studentId, out var attendanceByDate);
 
                 // Go backwards through scheduled days and count consecutive absences
                 while ((today - currentCheckDate).Days < 30 && currentCheckDate >= enrollmentDate)
                 {
                     if (activeDays.Contains((int)currentCheckDate.DayOfWeek))
                     {
-                        var record = studentAttendance.FirstOrDefault(a => a.Date.Date == currentCheckDate.Date);
-
                         // Only count explicit Absent records (ignore missing records)
-                        if (record != null && record.Status == AttendanceStatus.Absent)
+                        if (attendanceByDate != null && attendanceByDate.TryGetValue(currentCheckDate, out var status))
                         {
-                            consecutiveAbsences++;
-                        }
-                        else if (record != null && record.Status == AttendanceStatus.Present)
-                        {
-                            // Stop counting when we hit a present record
-                            break;
+                            if (status == AttendanceStatus.Absent)
+                            {
+                                consecutiveAbsences++;
+                            }
+                            else if (status == AttendanceStatus.Present)
+                            {
+                                // Stop counting when we hit a present record
+                                break;
+                            }
                         }
                         // If no record (missing), ignore and continue checking older dates
                     }
@@ -741,10 +755,10 @@ namespace KhairAPI.Services.Implementations
                 {
                     atRiskStudents.Add(new AtRiskStudentDto
                     {
-                        Id = student.Id,
-                        FullName = $"{student.FirstName} {student.LastName}",
-                        HalaqaName = activeAssignment.Halaqa?.Name ?? "",
-                        TeacherName = activeAssignment.Teacher?.FullName ?? "",
+                        Id = studentId,
+                        FullName = $"{assignment.FirstName} {assignment.LastName}",
+                        HalaqaName = assignment.HalaqaName,
+                        TeacherName = assignment.TeacherName,
                         AttendanceRate = 0, // Not used anymore, will show consecutive absences instead
                         DaysSinceLastProgress = daysSinceProgress,
                         ConsecutiveAbsences = consecutiveAbsences
