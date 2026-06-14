@@ -17,6 +17,9 @@ namespace KhairAPI.Models.DTOs
         public string HalaqaName { get; set; } = string.Empty;
         public DateTime Date { get; set; }
         public string Status { get; set; } = string.Empty; // حاضر/غائب/متأخر
+        public TimeOnly? CheckInTime { get; set; }   // وقت الحضور
+        public TimeOnly? CheckOutTime { get; set; }  // وقت الانصراف
+        public double? WorkedHours { get; set; }     // ساعات العمل (انصراف - حضور)
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
     }
@@ -34,6 +37,9 @@ namespace KhairAPI.Models.DTOs
 
         [Required(ErrorMessage = "حالة الحضور مطلوبة")]
         public AttendanceStatus Status { get; set; }
+
+        public TimeOnly? CheckInTime { get; set; }   // وقت الحضور (اختياري)
+        public TimeOnly? CheckOutTime { get; set; }  // وقت الانصراف (اختياري)
 
         public string? Notes { get; set; }
     }
@@ -57,6 +63,9 @@ namespace KhairAPI.Models.DTOs
         public string? PhoneNumber { get; set; }
         public int? AttendanceId { get; set; } // null if no attendance recorded yet
         public AttendanceStatus? Status { get; set; } // null if no attendance recorded
+        public TimeOnly? CheckInTime { get; set; }   // وقت الحضور
+        public TimeOnly? CheckOutTime { get; set; }  // وقت الانصراف
+        public double? WorkedHours { get; set; }     // ساعات العمل
         public string? Notes { get; set; }
     }
 
@@ -95,7 +104,10 @@ namespace KhairAPI.Models.DTOs
     {
         [Required(ErrorMessage = "حالة الحضور مطلوبة")]
         public AttendanceStatus Status { get; set; }
-        
+
+        public TimeOnly? CheckInTime { get; set; }   // وقت الحضور
+        public TimeOnly? CheckOutTime { get; set; }  // وقت الانصراف
+
         public string? Notes { get; set; }
     }
 
@@ -111,6 +123,7 @@ namespace KhairAPI.Models.DTOs
         public int PresentDays { get; set; }       // Includes Late (no deduction)
         public int AbsentDays { get; set; }        // For salary deduction
         public int LateDays { get; set; }          // Info only, no deduction
+        public double TotalHours { get; set; }     // إجمالي ساعات العمل خلال الشهر
         public double AttendanceRate => ExpectedDays > 0 ? (double)(PresentDays + LateDays) / ExpectedDays * 100 : 0;
     }
 
@@ -123,6 +136,12 @@ namespace KhairAPI.Models.DTOs
         public string DayName { get; set; } = string.Empty; // Arabic day name
         /// <summary>True if the teacher is already marked present today.</summary>
         public bool CheckedIn { get; set; }
+        /// <summary>True if the teacher has already recorded a departure today.</summary>
+        public bool CheckedOut { get; set; }
+        /// <summary>Recorded arrival time (if any).</summary>
+        public TimeOnly? CheckInTime { get; set; }
+        /// <summary>Recorded departure time (if any).</summary>
+        public TimeOnly? CheckOutTime { get; set; }
         /// <summary>False when the teacher has no halaqa scheduled today (nothing to check in to).</summary>
         public bool HasActiveHalaqaToday { get; set; }
         /// <summary>Number of the teacher's halaqat that are active today.</summary>
@@ -151,6 +170,7 @@ namespace KhairAPI.Models.DTOs
         public int TotalExpectedDays { get; set; }
         public int TotalPresentDays { get; set; }
         public int TotalAbsentDays { get; set; }
+        public double TotalHours { get; set; }  // إجمالي ساعات العمل لكل المعلمين
         public List<TeacherMonthlySummaryDto> Teachers { get; set; } = new List<TeacherMonthlySummaryDto>();
     }
 }

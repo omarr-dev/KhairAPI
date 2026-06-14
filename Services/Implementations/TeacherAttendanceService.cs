@@ -69,6 +69,9 @@ namespace KhairAPI.Services.Implementations
                         PhoneNumber = teacher.PhoneNumber,
                         AttendanceId = attendance?.Id,
                         Status = attendance?.Status,
+                        CheckInTime = attendance?.CheckInTime,
+                        CheckOutTime = attendance?.CheckOutTime,
+                        WorkedHours = CalculateWorkedHours(attendance?.CheckInTime, attendance?.CheckOutTime),
                         Notes = attendance?.Notes
                     });
 
@@ -174,9 +177,13 @@ namespace KhairAPI.Services.Implementations
                     throw new InvalidOperationException($"المعلم ذو الرقم {entry.TeacherId} غير معين في الحلقة {entry.HalaqaId}");
                 }
 
+                ValidateTimes(entry.CheckInTime, entry.CheckOutTime);
+
                 if (attendanceLookup.TryGetValue(new { entry.TeacherId, entry.HalaqaId }, out var existing))
                 {
                     existing.Status = entry.Status;
+                    existing.CheckInTime = entry.CheckInTime;
+                    existing.CheckOutTime = entry.CheckOutTime;
                     existing.Notes = entry.Notes;
                 }
                 else
@@ -187,6 +194,8 @@ namespace KhairAPI.Services.Implementations
                         HalaqaId = entry.HalaqaId,
                         Date = today,
                         Status = entry.Status,
+                        CheckInTime = entry.CheckInTime,
+                        CheckOutTime = entry.CheckOutTime,
                         Notes = entry.Notes,
                         CreatedAt = DateTime.UtcNow,
                         AssociationId = _tenantService.CurrentAssociationId.Value
@@ -205,7 +214,11 @@ namespace KhairAPI.Services.Implementations
             if (attendance == null)
                 return false;
 
+            ValidateTimes(dto.CheckInTime, dto.CheckOutTime);
+
             attendance.Status = dto.Status;
+            attendance.CheckInTime = dto.CheckInTime;
+            attendance.CheckOutTime = dto.CheckOutTime;
             attendance.Notes = dto.Notes;
 
             await _context.SaveChangesAsync();
@@ -252,7 +265,7 @@ namespace KhairAPI.Services.Implementations
                 query = query.Where(ta => ta.Date <= toDate.Value.Date);
             }
 
-            return await query
+            var records = await query
                 .OrderByDescending(ta => ta.Date)
                 .Select(ta => new TeacherAttendanceRecordDto
                 {
@@ -263,10 +276,19 @@ namespace KhairAPI.Services.Implementations
                     HalaqaName = ta.Halaqa.Name,
                     Date = ta.Date,
                     Status = GetStatusArabicName(ta.Status),
+                    CheckInTime = ta.CheckInTime,
+                    CheckOutTime = ta.CheckOutTime,
                     Notes = ta.Notes,
                     CreatedAt = ta.CreatedAt
                 })
                 .ToListAsync();
+
+            foreach (var r in records)
+            {
+                r.WorkedHours = CalculateWorkedHours(r.CheckInTime, r.CheckOutTime);
+            }
+
+            return records;
         }
 
         public async Task<MonthlyAttendanceReportDto> GetMonthlyReportAsync(int year, int month, List<int>? halaqaFilter = null)
@@ -322,6 +344,8 @@ namespace KhairAPI.Services.Implementations
                 var presentDays = teacherAttendance.Count(ta => ta.Status == AttendanceStatus.Present);
                 var lateDays = teacherAttendance.Count(ta => ta.Status == AttendanceStatus.Late);
                 var absentDays = teacherAttendance.Count(ta => ta.Status == AttendanceStatus.Absent);
+                var totalHours = teacherAttendance
+                    .Sum(ta => CalculateWorkedHours(ta.CheckInTime, ta.CheckOutTime) ?? 0);
 
                 teacherSummaries.Add(new TeacherMonthlySummaryDto
                 {
@@ -331,7 +355,8 @@ namespace KhairAPI.Services.Implementations
                     ExpectedDays = expectedDays,
                     PresentDays = presentDays,
                     AbsentDays = absentDays,
-                    LateDays = lateDays
+                    LateDays = lateDays,
+                    TotalHours = Math.Round(totalHours, 1)
                 });
             }
 
@@ -344,6 +369,7 @@ namespace KhairAPI.Services.Implementations
                 TotalExpectedDays = teacherSummaries.Sum(t => t.ExpectedDays),
                 TotalPresentDays = teacherSummaries.Sum(t => t.PresentDays + t.LateDays),
                 TotalAbsentDays = teacherSummaries.Sum(t => t.AbsentDays),
+                TotalHours = Math.Round(teacherSummaries.Sum(t => t.TotalHours), 1),
                 Teachers = teacherSummaries
             };
         }
@@ -356,13 +382,23 @@ namespace KhairAPI.Services.Implementations
             var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
 
             var checkedIn = false;
+            var checkedOut = false;
+            TimeOnly? checkInTime = null;
+            TimeOnly? checkOutTime = null;
+
             if (activeHalaqaIds.Count > 0)
             {
-                checkedIn = await _context.TeacherAttendances.AnyAsync(ta =>
-                    ta.TeacherId == teacherId &&
-                    activeHalaqaIds.Contains(ta.HalaqaId) &&
-                    ta.Date.Date == today &&
-                    ta.Status == AttendanceStatus.Present);
+                var todayRecords = await _context.TeacherAttendances
+                    .Where(ta => ta.TeacherId == teacherId &&
+                                 activeHalaqaIds.Contains(ta.HalaqaId) &&
+                                 ta.Date.Date == today)
+                    .ToListAsync();
+
+                checkedIn = todayRecords.Any(ta => ta.Status == AttendanceStatus.Present);
+                checkedOut = todayRecords.Any(ta => ta.CheckOutTime != null);
+                // Earliest arrival / latest departure across the teacher's halaqat today
+                checkInTime = todayRecords.Where(ta => ta.CheckInTime != null).Min(ta => ta.CheckInTime);
+                checkOutTime = todayRecords.Where(ta => ta.CheckOutTime != null).Max(ta => ta.CheckOutTime);
             }
 
             return new TeacherSelfAttendanceStatusDto
@@ -370,6 +406,9 @@ namespace KhairAPI.Services.Implementations
                 Date = today,
                 DayName = AppConstants.ArabicDayNames.GetDayName(today.DayOfWeek),
                 CheckedIn = checkedIn,
+                CheckedOut = checkedOut,
+                CheckInTime = checkInTime,
+                CheckOutTime = checkOutTime,
                 HasActiveHalaqaToday = activeHalaqaIds.Count > 0,
                 HalaqatCount = activeHalaqaIds.Count
             };
@@ -400,6 +439,7 @@ namespace KhairAPI.Services.Implementations
                 .ToListAsync();
             var alreadyRecordedSet = alreadyRecorded.ToHashSet();
 
+            var nowTime = NowKsaTime();
             var created = 0;
             foreach (var halaqaId in activeHalaqaIds)
             {
@@ -412,6 +452,7 @@ namespace KhairAPI.Services.Implementations
                     HalaqaId = halaqaId,
                     Date = today,
                     Status = AttendanceStatus.Present,
+                    CheckInTime = nowTime,
                     CreatedAt = DateTime.UtcNow,
                     AssociationId = _tenantService.CurrentAssociationId.Value
                 });
@@ -428,6 +469,57 @@ namespace KhairAPI.Services.Implementations
                 CheckedIn = true,
                 RecordsCreated = created,
                 Message = AppConstants.SuccessMessages.TeacherCheckedIn
+            };
+        }
+
+        public async Task<TeacherSelfCheckInResultDto> SelfCheckOutAsync(int teacherId)
+        {
+            var today = DateTime.UtcNow.Date;
+            var dayOfWeek = (int)today.DayOfWeek;
+
+            var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
+            if (activeHalaqaIds.Count == 0)
+            {
+                throw new InvalidOperationException("لا توجد حلقة نشطة لك اليوم");
+            }
+
+            // The teacher must already be checked in (present) today before they can check out.
+            var todayRecords = await _context.TeacherAttendances
+                .Where(ta => ta.TeacherId == teacherId &&
+                             activeHalaqaIds.Contains(ta.HalaqaId) &&
+                             ta.Date.Date == today &&
+                             ta.Status == AttendanceStatus.Present)
+                .ToListAsync();
+
+            if (todayRecords.Count == 0)
+            {
+                throw new InvalidOperationException(AppConstants.ErrorMessages.NotCheckedInYet);
+            }
+
+            var nowTime = NowKsaTime();
+            var updated = 0;
+            foreach (var record in todayRecords)
+            {
+                // Don't let departure precede arrival; skip records already checked out.
+                if (record.CheckOutTime != null)
+                    continue;
+                if (record.CheckInTime != null && nowTime < record.CheckInTime.Value)
+                    continue;
+
+                record.CheckOutTime = nowTime;
+                updated++;
+            }
+
+            if (updated > 0)
+            {
+                await _context.SaveChangesAsync();
+            }
+
+            return new TeacherSelfCheckInResultDto
+            {
+                CheckedIn = true,
+                RecordsCreated = updated,
+                Message = AppConstants.SuccessMessages.TeacherCheckedOut
             };
         }
 
@@ -495,6 +587,37 @@ namespace KhairAPI.Services.Implementations
 
             var days = activeDays.Split(',', StringSplitOptions.RemoveEmptyEntries);
             return days.Any(d => int.TryParse(d.Trim(), out int day) && day == dayOfWeek);
+        }
+
+        private static readonly TimeZoneInfo KsaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time");
+
+        /// <summary>Current time of day in KSA local time, truncated to minutes.</summary>
+        private static TimeOnly NowKsaTime()
+        {
+            var ksaNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, KsaTimeZone);
+            return new TimeOnly(ksaNow.Hour, ksaNow.Minute);
+        }
+
+        /// <summary>Worked hours between arrival and departure, or null if either is missing/invalid.</summary>
+        private static double? CalculateWorkedHours(TimeOnly? checkIn, TimeOnly? checkOut)
+        {
+            if (checkIn == null || checkOut == null)
+                return null;
+
+            var diff = checkOut.Value.ToTimeSpan() - checkIn.Value.ToTimeSpan();
+            if (diff <= TimeSpan.Zero)
+                return null;
+
+            return Math.Round(diff.TotalHours, 2);
+        }
+
+        /// <summary>Rejects a departure time that is not strictly after the arrival time.</summary>
+        private static void ValidateTimes(TimeOnly? checkIn, TimeOnly? checkOut)
+        {
+            if (checkIn != null && checkOut != null && checkOut.Value <= checkIn.Value)
+            {
+                throw new InvalidOperationException(AppConstants.ErrorMessages.InvalidDepartureTime);
+            }
         }
 
         private static string GetStatusArabicName(AttendanceStatus status)

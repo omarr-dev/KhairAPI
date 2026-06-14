@@ -22,6 +22,12 @@ namespace KhairAPI.Services.Interfaces
         /// Existing records (e.g. already set by a supervisor) are left untouched.
         /// </summary>
         Task<TeacherSelfCheckInResultDto> SelfCheckInAsync(int teacherId);
+
+        /// <summary>
+        /// Records the teacher's departure time on today's present records.
+        /// Requires the teacher to be checked in first.
+        /// </summary>
+        Task<TeacherSelfCheckInResultDto> SelfCheckOutAsync(int teacherId);
     }
 }
 

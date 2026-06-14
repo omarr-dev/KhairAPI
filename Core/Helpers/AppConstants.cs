@@ -68,6 +68,8 @@ namespace KhairAPI.Core.Helpers
 
             // Attendance
             public const string AttendanceNotFound = "سجل الحضور غير موجود";
+            public const string NotCheckedInYet = "يجب تسجيل الحضور أولاً قبل تسجيل الانصراف";
+            public const string InvalidDepartureTime = "وقت الانصراف يجب أن يكون بعد وقت الحضور";
 
             // Progress
             public const string ProgressNotFound = "السجل غير موجود أو ليس لديك صلاحية حذفه";
@@ -90,6 +92,7 @@ namespace KhairAPI.Core.Helpers
             public const string AttendanceUpdated = "تم تحديث الحضور بنجاح";
             public const string TeacherAttendanceSaved = "تم حفظ حضور المعلمين بنجاح";
             public const string TeacherCheckedIn = "تم تسجيل حضورك بنجاح";
+            public const string TeacherCheckedOut = "تم تسجيل انصرافك بنجاح";
         }
 
         public static class ArabicDayNames

@@ -455,9 +455,9 @@ namespace KhairAPI.Services.Implementations
             worksheet.Cell(1, 1).Value = $"تقرير حضور المعلمين - من {startDate:yyyy-MM-dd} إلى {endDate:yyyy-MM-dd}";
             worksheet.Cell(1, 1).Style.Font.Bold = true;
             worksheet.Cell(1, 1).Style.Font.FontSize = 14;
-            worksheet.Range(1, 1, 1, 7).Merge();
+            worksheet.Range(1, 1, 1, 9).Merge();
 
-            var headers = new[] { "م", "المعلم", "الهاتف", "الأيام المتوقعة (حتى اليوم)", "أيام الحضور", "أيام الغياب", "أيام التأخر", "نسبة الحضور" };
+            var headers = new[] { "م", "المعلم", "الهاتف", "الأيام المتوقعة (حتى اليوم)", "أيام الحضور", "أيام الغياب", "أيام التأخر", "نسبة الحضور", "إجمالي الساعات" };
             for (int i = 0; i < headers.Length; i++)
             {
                 worksheet.Cell(3, i + 1).Value = headers[i];
@@ -471,6 +471,7 @@ namespace KhairAPI.Services.Implementations
             int totalPresentDays = 0;
             int totalAbsentDays = 0;
             int totalLateDays = 0;
+            double totalHoursAll = 0;
 
             foreach (var teacher in teachers)
             {
@@ -487,6 +488,8 @@ namespace KhairAPI.Services.Implementations
                 var presentDays = teacherAttendance.Count(ta => ta.Status == AttendanceStatus.Present);
                 var lateDays = teacherAttendance.Count(ta => ta.Status == AttendanceStatus.Late);
                 var absentDays = teacherAttendance.Count(ta => ta.Status == AttendanceStatus.Absent);
+                var teacherHours = Math.Round(
+                    teacherAttendance.Sum(ta => CalculateWorkedHours(ta.CheckInTime, ta.CheckOutTime)), 1);
 
                 var attendanceRate = expectedDays > 0
                     ? (double)(presentDays + lateDays) / expectedDays * 100
@@ -500,6 +503,7 @@ namespace KhairAPI.Services.Implementations
                 worksheet.Cell(row, 6).Value = absentDays;
                 worksheet.Cell(row, 7).Value = lateDays;
                 worksheet.Cell(row, 8).Value = $"{attendanceRate:F1}%";
+                worksheet.Cell(row, 9).Value = teacherHours;
 
                 if (absentDays > 0)
                 {
@@ -510,6 +514,7 @@ namespace KhairAPI.Services.Implementations
                 totalPresentDays += presentDays + lateDays;
                 totalAbsentDays += absentDays;
                 totalLateDays += lateDays;
+                totalHoursAll += teacherHours;
 
                 row++;
             }
@@ -524,14 +529,18 @@ namespace KhairAPI.Services.Implementations
             worksheet.Cell(row, 8).Value = totalExpectedDays > 0
                 ? $"{(double)totalPresentDays / totalExpectedDays * 100:F1}%"
                 : "0%";
+            worksheet.Cell(row, 9).Value = Math.Round(totalHoursAll, 1);
             worksheet.Row(row).Style.Font.Bold = true;
             worksheet.Row(row).Style.Fill.BackgroundColor = XLColor.LightGray;
 
-            var dataRange = worksheet.Range(3, 1, row, 8);
+            var dataRange = worksheet.Range(3, 1, row, 9);
             dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
             worksheet.Columns().AdjustToContents();
+
+            // Daily detail sheet — per-record arrival / departure / hours
+            BuildTeacherAttendanceDetailSheet(workbook, teachers, attendanceRecords);
 
             var notesSheet = workbook.Worksheets.Add("ملاحظات");
             notesSheet.RightToLeft = true;
@@ -540,13 +549,84 @@ namespace KhairAPI.Services.Implementations
             notesSheet.Cell(2, 1).Value = "• أيام الحضور تشمل أيام التأخر (لا يُخصم من الراتب)";
             notesSheet.Cell(3, 1).Value = "• أيام الغياب هي الأيام التي يُخصم عليها من الراتب";
             notesSheet.Cell(4, 1).Value = "• الأيام المتوقعة محسوبة بناءً على أيام نشاط الحلقات المخصصة للمعلم";
-            notesSheet.Cell(5, 1).Value = $"• تاريخ التقرير: {DateTime.UtcNow:yyyy-MM-dd HH:mm}";
+            notesSheet.Cell(5, 1).Value = "• إجمالي الساعات = مجموع (وقت الانصراف − وقت الحضور) للأيام المسجّل فيها الوقتان";
+            notesSheet.Cell(6, 1).Value = "• ورقة \"التفاصيل اليومية\" تعرض وقت الحضور والانصراف لكل يوم";
+            notesSheet.Cell(7, 1).Value = $"• تاريخ التقرير: {DateTime.UtcNow:yyyy-MM-dd HH:mm}";
             notesSheet.Columns().AdjustToContents();
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
             return stream.ToArray();
         }
+
+        /// <summary>Builds a sheet listing each attendance record with arrival/departure times and worked hours.</summary>
+        private static void BuildTeacherAttendanceDetailSheet(
+            XLWorkbook workbook,
+            List<Teacher> teachers,
+            List<TeacherAttendance> attendanceRecords)
+        {
+            var sheet = workbook.Worksheets.Add("التفاصيل اليومية");
+            sheet.RightToLeft = true;
+
+            var teacherNames = teachers.ToDictionary(t => t.Id, t => t.FullName);
+
+            var headers = new[] { "م", "التاريخ", "المعلم", "الحالة", "وقت الحضور", "وقت الانصراف", "ساعات العمل", "ملاحظات" };
+            for (int i = 0; i < headers.Length; i++)
+            {
+                sheet.Cell(1, i + 1).Value = headers[i];
+                sheet.Cell(1, i + 1).Style.Font.Bold = true;
+                sheet.Cell(1, i + 1).Style.Fill.BackgroundColor = XLColor.LightGreen;
+                sheet.Cell(1, i + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            }
+
+            int row = 2;
+            var ordered = attendanceRecords
+                .Where(ta => teacherNames.ContainsKey(ta.TeacherId))
+                .OrderBy(ta => ta.Date)
+                .ThenBy(ta => teacherNames[ta.TeacherId]);
+
+            foreach (var ta in ordered)
+            {
+                var hours = CalculateWorkedHours(ta.CheckInTime, ta.CheckOutTime);
+
+                sheet.Cell(row, 1).Value = row - 1;
+                sheet.Cell(row, 2).Value = ta.Date.ToString("yyyy-MM-dd");
+                sheet.Cell(row, 3).Value = teacherNames[ta.TeacherId];
+                sheet.Cell(row, 4).Value = GetStatusArabicName(ta.Status);
+                sheet.Cell(row, 5).Value = ta.CheckInTime?.ToString("HH:mm") ?? "—";
+                sheet.Cell(row, 6).Value = ta.CheckOutTime?.ToString("HH:mm") ?? "—";
+                sheet.Cell(row, 7).Value = hours > 0 ? Math.Round(hours, 1).ToString("0.0") : "—";
+                sheet.Cell(row, 8).Value = ta.Notes ?? "";
+                row++;
+            }
+
+            if (row > 2)
+            {
+                var dataRange = sheet.Range(1, 1, row - 1, headers.Length);
+                dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            }
+
+            sheet.Columns().AdjustToContents();
+        }
+
+        /// <summary>Worked hours between arrival and departure (0 if either is missing/invalid).</summary>
+        private static double CalculateWorkedHours(TimeOnly? checkIn, TimeOnly? checkOut)
+        {
+            if (checkIn == null || checkOut == null)
+                return 0;
+
+            var diff = checkOut.Value.ToTimeSpan() - checkIn.Value.ToTimeSpan();
+            return diff > TimeSpan.Zero ? diff.TotalHours : 0;
+        }
+
+        private static string GetStatusArabicName(AttendanceStatus status) => status switch
+        {
+            AttendanceStatus.Present => "حاضر",
+            AttendanceStatus.Absent => "غائب",
+            AttendanceStatus.Late => "متأخر",
+            _ => "غير محدد"
+        };
 
         private static int CalculateExpectedWorkingDays(List<Halaqa> halaqat, DateTime startDate, DateTime endDate)
         {

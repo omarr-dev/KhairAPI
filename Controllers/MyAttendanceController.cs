@@ -48,5 +48,17 @@ namespace KhairAPI.Controllers
             var result = await _teacherAttendanceService.SelfCheckInAsync(teacherId.Value);
             return Ok(result);
         }
+
+        /// <summary>Record the logged-in teacher's departure time for today.</summary>
+        [HttpPost("check-out")]
+        public async Task<IActionResult> CheckOut()
+        {
+            var teacherId = await _currentUserService.GetTeacherIdAsync();
+            if (teacherId == null)
+                return BadRequest(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+            var result = await _teacherAttendanceService.SelfCheckOutAsync(teacherId.Value);
+            return Ok(result);
+        }
     }
 }

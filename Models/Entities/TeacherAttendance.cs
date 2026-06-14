@@ -19,6 +19,12 @@ namespace KhairAPI.Models.Entities
         [Required]
         public AttendanceStatus Status { get; set; }
 
+        /// <summary>Arrival time (KSA local time of day). Null until checked in with a time.</summary>
+        public TimeOnly? CheckInTime { get; set; }
+
+        /// <summary>Departure time (KSA local time of day). Null until the teacher checks out.</summary>
+        public TimeOnly? CheckOutTime { get; set; }
+
         public string? Notes { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
