@@ -203,6 +203,10 @@ namespace KhairAPI.Services.Implementations
                 Email = dto.Email,
                 IdNumber = dto.IdNumber,
                 Qualification = dto.Qualification,
+                Nationality = dto.Nationality,
+                JobTitle = dto.JobTitle,
+                ContractType = dto.ContractType,
+                PayrollGroup = dto.PayrollGroup,
                 JoinDate = DateTime.UtcNow,
                 AssociationId = _tenantService.CurrentAssociationId.Value
             };
@@ -242,6 +246,10 @@ namespace KhairAPI.Services.Implementations
                 Email = teacher.Email,
                 IdNumber = teacher.IdNumber,
                 Qualification = teacher.Qualification,
+                Nationality = teacher.Nationality,
+                JobTitle = teacher.JobTitle,
+                ContractType = teacher.ContractType,
+                PayrollGroup = teacher.PayrollGroup,
                 JoinDate = teacher.JoinDate,
                 HalaqatCount = teacher.HalaqaTeachers.Count,
                 StudentsCount = 0
@@ -281,6 +289,10 @@ namespace KhairAPI.Services.Implementations
             teacher.Email = dto.Email;
             teacher.IdNumber = dto.IdNumber;
             teacher.Qualification = dto.Qualification;
+            teacher.Nationality = dto.Nationality;
+            teacher.JobTitle = dto.JobTitle;
+            teacher.ContractType = dto.ContractType;
+            teacher.PayrollGroup = dto.PayrollGroup;
 
             if (teacher.User != null)
             {
@@ -395,6 +407,10 @@ namespace KhairAPI.Services.Implementations
                 Email = teacher.Email,
                 IdNumber = teacher.IdNumber,
                 Qualification = teacher.Qualification,
+                Nationality = teacher.Nationality,
+                JobTitle = teacher.JobTitle,
+                ContractType = teacher.ContractType,
+                PayrollGroup = teacher.PayrollGroup,
                 JoinDate = teacher.JoinDate,
                 HalaqatCount = teacher.HalaqaTeachers.Count,
                 StudentsCount = teacher.StudentHalaqat.Count(sh => sh.IsActive)

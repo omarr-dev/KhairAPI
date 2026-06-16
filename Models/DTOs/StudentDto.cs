@@ -16,14 +16,21 @@ namespace KhairAPI.Models.DTOs
         public string? GuardianPhone { get; set; }
         public string? Phone { get; set; }
         public string? IdNumber { get; set; }
-        
+
+        // Demographic / administrative info
+        public string? Nationality { get; set; }
+        public string? Office { get; set; }
+        public string? Center { get; set; }
+        public string? SocialStatus { get; set; }
+        public string? HealthStatus { get; set; }
+
         // Memorization tracking
         public string MemorizationDirection { get; set; } = "Forward";
         public int CurrentSurahNumber { get; set; }
         public string? CurrentSurahName { get; set; }
         public int CurrentVerse { get; set; }
         public decimal JuzMemorized { get; set; }
-        
+
         public string? CurrentHalaqa { get; set; }
         public string? TeacherName { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -94,13 +101,20 @@ namespace KhairAPI.Models.DTOs
 
         public string? IdNumber { get; set; }
 
+        // Demographic / administrative info
+        public string? Nationality { get; set; }
+        public string? Office { get; set; }
+        public string? Center { get; set; }
+        public string? SocialStatus { get; set; }
+        public string? HealthStatus { get; set; }
+
         // Memorization tracking
         public string MemorizationDirection { get; set; } = "Forward";
         public int CurrentSurahNumber { get; set; } = 1;
         public int CurrentVerse { get; set; } = 0;
 
         public int? HalaqaId { get; set; }
-        
+
         public int? TeacherId { get; set; }
     }
 
@@ -123,8 +137,15 @@ namespace KhairAPI.Models.DTOs
         public string? Phone { get; set; }
 
         public string? IdNumber { get; set; }
+
+        // Demographic / administrative info
+        public string? Nationality { get; set; }
+        public string? Office { get; set; }
+        public string? Center { get; set; }
+        public string? SocialStatus { get; set; }
+        public string? HealthStatus { get; set; }
     }
-    
+
     public class UpdateMemorizationDto
     {
         [Required(ErrorMessage = "اتجاه الحفظ مطلوب")]
@@ -177,14 +198,21 @@ namespace KhairAPI.Models.DTOs
         public string? GuardianPhone { get; set; }
         public string? Phone { get; set; }
         public string? IdNumber { get; set; }
-        
+
+        // Demographic / administrative info
+        public string? Nationality { get; set; }
+        public string? Office { get; set; }
+        public string? Center { get; set; }
+        public string? SocialStatus { get; set; }
+        public string? HealthStatus { get; set; }
+
         // Memorization tracking
         public string MemorizationDirection { get; set; } = "Forward";
         public int CurrentSurahNumber { get; set; }
         public string? CurrentSurahName { get; set; }
         public int CurrentVerse { get; set; }
         public decimal JuzMemorized { get; set; }
-        
+
         // Halaqa Info
         public int? HalaqaId { get; set; }
         public string? CurrentHalaqa { get; set; }

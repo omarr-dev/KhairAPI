@@ -22,6 +22,12 @@ namespace KhairAPI.Models.Entities
 
         public string? Qualification { get; set; }
 
+        // Demographic / administrative info (imported)
+        public string? Nationality { get; set; }    // الجنسية
+        public string? JobTitle { get; set; }        // المسمى الوظيفي
+        public string? ContractType { get; set; }    // نوع العقد
+        public string? PayrollGroup { get; set; }    // المسير
+
         public DateTime JoinDate { get; set; } = DateTime.UtcNow;
 
         // Multi-tenancy

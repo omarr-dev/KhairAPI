@@ -217,6 +217,11 @@ namespace KhairAPI.Services.Implementations
                     GuardianPhone = student.GuardianPhone,
                     Phone = student.Phone,
                     IdNumber = student.IdNumber,
+                    Nationality = student.Nationality,
+                    Office = student.Office,
+                    Center = student.Center,
+                    SocialStatus = student.SocialStatus,
+                    HealthStatus = student.HealthStatus,
                     MemorizationDirection = student.MemorizationDirection.ToString(),
                     CurrentSurahNumber = student.CurrentSurahNumber,
                     CurrentVerse = student.CurrentVerse,
@@ -337,6 +342,11 @@ namespace KhairAPI.Services.Implementations
                 DateOfBirth = student.DateOfBirth,
                 GuardianName = student.GuardianName,
                 GuardianPhone = student.GuardianPhone,
+                Nationality = student.Nationality,
+                Office = student.Office,
+                Center = student.Center,
+                SocialStatus = student.SocialStatus,
+                HealthStatus = student.HealthStatus,
                 Phone = student.Phone,
                 IdNumber = student.IdNumber,
                 MemorizationDirection = student.MemorizationDirection.ToString(),
@@ -436,6 +446,11 @@ namespace KhairAPI.Services.Implementations
                 GuardianPhone = dto.GuardianPhone,
                 Phone = dto.Phone,
                 IdNumber = dto.IdNumber,
+                Nationality = dto.Nationality,
+                Office = dto.Office,
+                Center = dto.Center,
+                SocialStatus = dto.SocialStatus,
+                HealthStatus = dto.HealthStatus,
                 MemorizationDirection = direction,
                 CurrentSurahNumber = dto.CurrentSurahNumber,
                 CurrentVerse = dto.CurrentVerse,
@@ -481,6 +496,11 @@ namespace KhairAPI.Services.Implementations
             student.GuardianPhone = dto.GuardianPhone;
             student.Phone = dto.Phone;
             student.IdNumber = dto.IdNumber;
+            student.Nationality = dto.Nationality;
+            student.Office = dto.Office;
+            student.Center = dto.Center;
+            student.SocialStatus = dto.SocialStatus;
+            student.HealthStatus = dto.HealthStatus;
 
             await _context.SaveChangesAsync();
             return await GetStudentByIdAsync(id);
@@ -722,6 +742,11 @@ namespace KhairAPI.Services.Implementations
                 GuardianPhone = student.GuardianPhone,
                 Phone = student.Phone,
                 IdNumber = student.IdNumber,
+                Nationality = student.Nationality,
+                Office = student.Office,
+                Center = student.Center,
+                SocialStatus = student.SocialStatus,
+                HealthStatus = student.HealthStatus,
                 MemorizationDirection = student.MemorizationDirection.ToString(),
                 CurrentSurahNumber = student.CurrentSurahNumber,
                 CurrentVerse = student.CurrentVerse,

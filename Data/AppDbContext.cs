@@ -76,6 +76,10 @@ namespace KhairAPI.Data
                 entity.Property(e => e.Email).HasMaxLength(255);
                 entity.Property(e => e.IdNumber).HasMaxLength(20);
                 entity.Property(e => e.Qualification).HasMaxLength(500);
+                entity.Property(e => e.Nationality).HasMaxLength(100);
+                entity.Property(e => e.JobTitle).HasMaxLength(255);
+                entity.Property(e => e.ContractType).HasMaxLength(100);
+                entity.Property(e => e.PayrollGroup).HasMaxLength(255);
 
                 // Create index on UserId for better join performance
                 entity.HasIndex(e => e.UserId);
@@ -127,6 +131,11 @@ namespace KhairAPI.Data
                 entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.GuardianName).HasMaxLength(255);
                 entity.Property(e => e.GuardianPhone).HasMaxLength(20);
+                entity.Property(e => e.Nationality).HasMaxLength(100);
+                entity.Property(e => e.Office).HasMaxLength(255);
+                entity.Property(e => e.Center).HasMaxLength(255);
+                entity.Property(e => e.SocialStatus).HasMaxLength(100);
+                entity.Property(e => e.HealthStatus).HasMaxLength(255);
 
                 // Multi-tenancy: Global query filter
                 entity.HasQueryFilter(e => _tenantService == null || !_tenantService.CurrentAssociationId.HasValue

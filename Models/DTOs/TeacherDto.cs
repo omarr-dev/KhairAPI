@@ -13,6 +13,10 @@ namespace KhairAPI.Models.DTOs
         public string? Email { get; set; }
         public string? IdNumber { get; set; }
         public string? Qualification { get; set; }
+        public string? Nationality { get; set; }
+        public string? JobTitle { get; set; }
+        public string? ContractType { get; set; }
+        public string? PayrollGroup { get; set; }
         public DateTime JoinDate { get; set; }
         public int HalaqatCount { get; set; }
         public int StudentsCount { get; set; }
@@ -34,6 +38,14 @@ namespace KhairAPI.Models.DTOs
 
         public string? Qualification { get; set; }
 
+        public string? Nationality { get; set; }
+
+        public string? JobTitle { get; set; }
+
+        public string? ContractType { get; set; }
+
+        public string? PayrollGroup { get; set; }
+
         public int? HalaqaId { get; set; }
     }
 
@@ -51,6 +63,14 @@ namespace KhairAPI.Models.DTOs
         public string? IdNumber { get; set; }
 
         public string? Qualification { get; set; }
+
+        public string? Nationality { get; set; }
+
+        public string? JobTitle { get; set; }
+
+        public string? ContractType { get; set; }
+
+        public string? PayrollGroup { get; set; }
     }
 
     public class TeacherHalaqaDto

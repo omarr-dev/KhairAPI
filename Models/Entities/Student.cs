@@ -22,8 +22,15 @@ namespace KhairAPI.Models.Entities
 
         // Student contact info
         public string? Phone { get; set; }
-        
+
         public string? IdNumber { get; set; }
+
+        // Demographic / administrative info (imported)
+        public string? Nationality { get; set; }        // الجنسية
+        public string? Office { get; set; }              // المكتب / القسم (رجالي/نسائي)
+        public string? Center { get; set; }              // المجمع / المركز
+        public string? SocialStatus { get; set; }        // الحالة الاجتماعية (طبيعي/محتاج/معاق)
+        public string? HealthStatus { get; set; }        // الحالة الصحية
 
         // Memorization tracking
         public MemorizationDirection MemorizationDirection { get; set; } = MemorizationDirection.Forward;

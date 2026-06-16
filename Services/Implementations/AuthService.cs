@@ -24,17 +24,29 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<AuthResponseDto?> LoginAsync(LoginDto loginDto)
         {
-            // Format and validate phone number
-            var formattedPhone = PhoneNumberValidator.Format(loginDto.PhoneNumber);
-            if (formattedPhone == null)
-                return null;
+            var input = (loginDto.PhoneNumber ?? string.Empty).Trim();
 
-            var user = await _context.Users
-                .Include(u => u.Teacher)
-                .Include(u => u.HalaqaAssignments.Where(a => a.IsActive))
-                .AsSplitQuery()
-                .OrderBy(u => u.Id)
-                .FirstOrDefaultAsync(u => u.PhoneNumber == formattedPhone && u.IsActive);
+            User? user = null;
+
+            // 1) Try as a Saudi phone number (normal flow)
+            var formattedPhone = PhoneNumberValidator.Format(input);
+            if (formattedPhone != null)
+            {
+                user = await FindActiveUserAsync(u => u.PhoneNumber == formattedPhone);
+            }
+
+            // 2) Fallback: log in by National ID (imported teachers without a real phone yet).
+            //    NID is stored in Teacher.IdNumber, and also placed in User.PhoneNumber on import.
+            if (user == null)
+            {
+                var nid = new string(input.Where(char.IsDigit).ToArray());
+                if (nid.Length >= 8)
+                {
+                    user = await FindActiveUserAsync(u =>
+                        u.PhoneNumber == nid ||
+                        (u.Teacher != null && u.Teacher.IdNumber == nid));
+                }
+            }
 
             if (user == null)
                 return null;
@@ -42,6 +54,17 @@ namespace KhairAPI.Services.Implementations
             // TODO: Add OTP verification here
 
             return GenerateAuthResponse(user);
+        }
+
+        private Task<User?> FindActiveUserAsync(System.Linq.Expressions.Expression<Func<User, bool>> match)
+        {
+            return _context.Users
+                .Include(u => u.Teacher)
+                .Include(u => u.HalaqaAssignments.Where(a => a.IsActive))
+                .AsSplitQuery()
+                .OrderBy(u => u.Id)
+                .Where(u => u.IsActive)
+                .FirstOrDefaultAsync(match);
         }
 
         public async Task<AuthResponseDto?> RegisterAsync(RegisterDto registerDto)
