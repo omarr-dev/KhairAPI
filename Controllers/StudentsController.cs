@@ -114,7 +114,6 @@ namespace KhairAPI.Controllers
         }
 
         [HttpGet("lookup")]
-        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> LookupByIdNumber([FromQuery] string idNumber)
         {
             if (string.IsNullOrWhiteSpace(idNumber))
@@ -170,11 +169,25 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPost]
-        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> CreateStudent([FromBody] CreateStudentDto dto)
         {
+            // Teachers may add students only to a halaqa they teach, assigned to themselves
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                if (!dto.HalaqaId.HasValue)
+                    return BadRequest(new { message = "يجب اختيار الحلقة" });
+
+                if (!await _studentService.DoesTeacherTeachHalaqaAsync(teacherId.Value, dto.HalaqaId.Value))
+                    return Forbid();
+
+                dto.TeacherId = teacherId.Value;
+            }
             // HalaqaSupervisors can only create students in their assigned halaqas
-            if (_currentUserService.IsHalaqaSupervisor && dto.HalaqaId.HasValue)
+            else if (_currentUserService.IsHalaqaSupervisor && dto.HalaqaId.HasValue)
             {
                 var canAccess = await _currentUserService.CanAccessHalaqaAsync(dto.HalaqaId.Value);
                 if (!canAccess)
@@ -194,10 +207,19 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> UpdateStudent(int id, [FromBody] UpdateStudentDto dto)
         {
-            // TODO: Add halaqa access check for HalaqaSupervisors if needed
+            // Teachers may edit only students assigned to them
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                if (!await _studentService.IsStudentAssignedToTeacherAsync(id, teacherId.Value))
+                    return Forbid();
+            }
+
             var student = await _studentService.UpdateStudentAsync(id, dto);
             if (student == null)
                 return NotFound(new { message = AppConstants.ErrorMessages.StudentNotFound });
@@ -217,17 +239,29 @@ namespace KhairAPI.Controllers
         }
 
         [HttpPost("assign")]
-        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> AssignStudentToHalaqa([FromBody] AssignStudentDto dto)
         {
+            // Teachers may assign only to a halaqa they teach, with themselves as the teacher
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                if (dto.TeacherId != teacherId.Value)
+                    return Forbid();
+
+                if (!await _studentService.DoesTeacherTeachHalaqaAsync(teacherId.Value, dto.HalaqaId))
+                    return Forbid();
+            }
             // HalaqaSupervisors can only assign to their halaqas
-            if (_currentUserService.IsHalaqaSupervisor)
+            else if (_currentUserService.IsHalaqaSupervisor)
             {
                 var canAccess = await _currentUserService.CanAccessHalaqaAsync(dto.HalaqaId);
                 if (!canAccess)
                     return Forbid();
             }
-            
+
             var result = await _studentService.AssignStudentToHalaqaAsync(dto);
             if (!result)
                 return BadRequest(new { message = AppConstants.ErrorMessages.CannotAssignStudent });
@@ -262,17 +296,26 @@ namespace KhairAPI.Controllers
         }
 
         [HttpDelete("assign/{studentId}/{halaqaId}/{teacherId}")]
-        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
         public async Task<IActionResult> DeleteAssignment(int studentId, int halaqaId, int teacherId)
         {
+            // Teachers may remove a student only from their own assignment
+            if (_currentUserService.IsTeacher)
+            {
+                var myTeacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!myTeacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+
+                if (teacherId != myTeacherId.Value)
+                    return Forbid();
+            }
             // HalaqaSupervisors can only delete assignments in their halaqas
-            if (_currentUserService.IsHalaqaSupervisor)
+            else if (_currentUserService.IsHalaqaSupervisor)
             {
                 var canAccess = await _currentUserService.CanAccessHalaqaAsync(halaqaId);
                 if (!canAccess)
                     return Forbid();
             }
-            
+
             var result = await _studentService.DeleteAssignmentAsync(studentId, halaqaId, teacherId);
             if (!result)
                 return NotFound(new { message = AppConstants.ErrorMessages.AssignmentNotFound });

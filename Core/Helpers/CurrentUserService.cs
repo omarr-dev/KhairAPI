@@ -86,12 +86,23 @@ namespace KhairAPI.Core.Helpers
             if (_teacherIdLoaded)
                 return _teacherId;
 
+            // Fast path: the teacher id is embedded in the JWT (see JwtService), so we can
+            // resolve it without a database round-trip on every authorized request.
+            var teacherIdClaim = User?.FindFirst("TeacherId")?.Value;
+            if (int.TryParse(teacherIdClaim, out var claimTeacherId))
+            {
+                _teacherId = claimTeacherId;
+                _teacherIdLoaded = true;
+                return _teacherId;
+            }
+
             if (!UserId.HasValue)
             {
                 _teacherIdLoaded = true;
                 return null;
             }
 
+            // Fallback for tokens issued before the TeacherId claim existed.
             var teacher = await _context.Teachers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.UserId == UserId.Value);

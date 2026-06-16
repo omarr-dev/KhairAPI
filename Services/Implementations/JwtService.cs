@@ -40,6 +40,11 @@ namespace KhairAPI.Services.Implementations
                 new Claim("AssociationId", user.AssociationId.ToString()) // Multi-tenancy support
             };
 
+            // Embed the teacher id so per-request lookups (CurrentUserService.GetTeacherIdAsync)
+            // can read it from the token instead of hitting the database on every call.
+            if (user.Teacher != null)
+                claims.Add(new Claim("TeacherId", user.Teacher.Id.ToString()));
+
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),

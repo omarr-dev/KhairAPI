@@ -322,21 +322,29 @@ namespace KhairAPI.Services.Implementations
                 .Include(a => a.Halaqa)
                 .ToListAsync();
 
-            // Compute aggregate stats in the database rather than in memory, so the
-            // full record set never has to be loaded (uses the StudentId index).
-            var totalVersesMemorized = await baseProgressQuery
-                .Where(p => p.Type == ProgressType.Memorization)
-                .SumAsync(p => (int?)(p.ToVerse - p.FromVerse + 1)) ?? 0;
-            var totalVersesRevised = await baseProgressQuery
-                .Where(p => p.Type == ProgressType.Revision)
-                .SumAsync(p => (int?)(p.ToVerse - p.FromVerse + 1)) ?? 0;
-            var totalProgressRecords = await baseProgressQuery.CountAsync();
+            // Compute all aggregate stats in a single database round-trip (conditional
+            // aggregation) rather than four separate SUM/COUNT/AVG queries. Uses the
+            // StudentId index and never materializes the full record set.
+            var aggregates = await baseProgressQuery
+                .GroupBy(p => 1)
+                .Select(g => new
+                {
+                    TotalProgressRecords = g.Count(),
+                    TotalVersesMemorized = g.Sum(p => p.Type == ProgressType.Memorization ? p.ToVerse - p.FromVerse + 1 : 0),
+                    TotalVersesRevised = g.Sum(p => p.Type == ProgressType.Revision ? p.ToVerse - p.FromVerse + 1 : 0),
+                    AverageQuality = g.Average(p => (double)(int)p.Quality)
+                })
+                .FirstOrDefaultAsync();
+
+            var totalProgressRecords = aggregates?.TotalProgressRecords ?? 0;
+            var totalVersesMemorized = aggregates?.TotalVersesMemorized ?? 0;
+            var totalVersesRevised = aggregates?.TotalVersesRevised ?? 0;
 
             double averageQuality = 0;
             string averageQualityText = "غير محدد";
             if (totalProgressRecords > 0)
             {
-                averageQuality = await baseProgressQuery.AverageAsync(p => (double)(int)p.Quality);
+                averageQuality = aggregates!.AverageQuality;
                 averageQualityText = averageQuality switch
                 {
                     < 0.5 => "ممتاز",
@@ -616,6 +624,12 @@ namespace KhairAPI.Services.Implementations
         {
             return await _context.StudentHalaqat
                 .AnyAsync(sh => sh.StudentId == studentId && sh.TeacherId == teacherId && sh.IsActive);
+        }
+
+        public async Task<bool> DoesTeacherTeachHalaqaAsync(int teacherId, int halaqaId)
+        {
+            return await _context.HalaqaTeachers
+                .AnyAsync(ht => ht.TeacherId == teacherId && ht.HalaqaId == halaqaId);
         }
 
         public async Task<IEnumerable<StudentAssignmentDto>> GetStudentAssignmentsAsync(int studentId)

@@ -25,6 +25,11 @@ namespace KhairAPI.Services.Interfaces
         Task<bool> DeleteStudentAsync(int id);
         Task<bool> AssignStudentToHalaqaAsync(AssignStudentDto dto);
         Task<bool> IsStudentAssignedToTeacherAsync(int studentId, int teacherId);
+        /// <summary>
+        /// True if the teacher is assigned to teach the given halaqa.
+        /// Used to authorize teachers adding/assigning students to their own halaqat.
+        /// </summary>
+        Task<bool> DoesTeacherTeachHalaqaAsync(int teacherId, int halaqaId);
         Task<IEnumerable<StudentDto>> SearchStudentsAsync(string searchTerm);
         Task<IEnumerable<StudentAssignmentDto>> GetStudentAssignmentsAsync(int studentId);
         Task<StudentAssignmentDto?> UpdateAssignmentAsync(int studentId, int halaqaId, int teacherId, UpdateAssignmentDto dto);
