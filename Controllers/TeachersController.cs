@@ -39,7 +39,7 @@ namespace KhairAPI.Controllers
         /// Minimal id/name list for dropdowns (avoids loading full teacher graphs)
         /// </summary>
         [HttpGet("lookup")]
-        public async Task<IActionResult> GetTeachersLookup()
+        public async Task<IActionResult> GetTeachersLookup([FromQuery] int? halaqaId = null)
         {
             List<int>? halaqaIds = null;
 
@@ -47,6 +47,17 @@ namespace KhairAPI.Controllers
             if (_currentUserService.IsHalaqaSupervisor)
             {
                 halaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync() ?? new List<int>();
+            }
+
+            // When a specific halaqa is requested, narrow the list to that halaqa
+            if (halaqaId.HasValue)
+            {
+                // A HalaqaSupervisor may only narrow within their assigned halaqas
+                if (halaqaIds != null && !halaqaIds.Contains(halaqaId.Value))
+                {
+                    return Ok(new List<LookupDto>());
+                }
+                halaqaIds = new List<int> { halaqaId.Value };
             }
 
             var teachers = await _teacherService.GetTeachersLookupAsync(halaqaIds);
