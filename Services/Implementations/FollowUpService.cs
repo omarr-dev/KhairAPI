@@ -16,45 +16,66 @@ namespace KhairAPI.Services.Implementations
             _context = context;
         }
 
-        public async Task<FollowUpResponseDto> GetFollowUpDataAsync(DateTime date, int? teacherId = null, List<int>? supervisedHalaqaIds = null)
+        public async Task<FollowUpResponseDto> GetFollowUpDataAsync(DateTime date, int? teacherId = null, List<int>? supervisedHalaqaIds = null, int page = 1, int pageSize = 20)
         {
-            // 1. Load hierarchy: Halaqat → HalaqaTeachers → Teacher, StudentHalaqat → Student
-            var halaqaQuery = _context.Halaqat
-                .Include(h => h.HalaqaTeachers)
-                    .ThenInclude(ht => ht.Teacher)
-                .Include(h => h.StudentHalaqat)
-                    .ThenInclude(sh => sh.Student)
-                .AsSplitQuery()
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            // 1. Matching halaqat (active + role filter), ordered by name — IDs only.
+            //    The list page is a slice of these; the Total* stats below cover ALL of them.
+            var matchingQuery = _context.Halaqat
                 .AsNoTracking()
                 .Where(h => h.IsActive);
 
-            // Role filtering
             if (teacherId.HasValue)
             {
-                halaqaQuery = halaqaQuery.Where(h => h.HalaqaTeachers.Any(ht => ht.TeacherId == teacherId.Value));
+                matchingQuery = matchingQuery.Where(h => h.HalaqaTeachers.Any(ht => ht.TeacherId == teacherId.Value));
             }
             else if (supervisedHalaqaIds != null)
             {
-                halaqaQuery = halaqaQuery.Where(h => supervisedHalaqaIds.Contains(h.Id));
+                matchingQuery = matchingQuery.Where(h => supervisedHalaqaIds.Contains(h.Id));
             }
 
-            var halaqat = await halaqaQuery.OrderBy(h => h.Name).ToListAsync();
+            var matchingHalaqaIds = await matchingQuery
+                .OrderBy(h => h.Name)
+                .Select(h => h.Id)
+                .ToListAsync();
 
-            // Collect all student IDs and teacher IDs for batch queries
-            var allStudentIds = new HashSet<int>();
-            var allTeacherIds = new HashSet<int>();
+            var totalCount = matchingHalaqaIds.Count;
+            var pageHalaqaIds = matchingHalaqaIds
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
 
-            foreach (var h in halaqat)
+            // 1b. Lightweight pairs across ALL matching halaqat (no Student/Teacher entity loads).
+            //     Used to compute exact totals without building/serializing thousands of DTOs.
+            var studentPairsQuery = _context.StudentHalaqat
+                .AsNoTracking()
+                .Where(sh => sh.IsActive && matchingHalaqaIds.Contains(sh.HalaqaId));
+            if (teacherId.HasValue)
             {
-                foreach (var sh in h.StudentHalaqat.Where(sh => sh.IsActive))
-                {
-                    allStudentIds.Add(sh.StudentId);
-                }
-                foreach (var ht in h.HalaqaTeachers)
-                {
-                    allTeacherIds.Add(ht.TeacherId);
-                }
+                studentPairsQuery = studentPairsQuery.Where(sh => sh.TeacherId == teacherId.Value);
             }
+            var studentPairs = await studentPairsQuery
+                .Select(sh => new { sh.StudentId, sh.HalaqaId, sh.TeacherId })
+                .ToListAsync();
+
+            var teacherPairsQuery = _context.HalaqaTeachers
+                .AsNoTracking()
+                .Where(ht => matchingHalaqaIds.Contains(ht.HalaqaId));
+            if (teacherId.HasValue)
+            {
+                teacherPairsQuery = teacherPairsQuery.Where(ht => ht.TeacherId == teacherId.Value);
+            }
+            var teacherPairs = await teacherPairsQuery
+                .Select(ht => new { ht.TeacherId, ht.HalaqaId })
+                .ToListAsync();
+
+            var allStudentIds = studentPairs.Select(p => p.StudentId).ToHashSet();
+            var allTeacherIds = teacherPairs.Select(p => p.TeacherId).ToHashSet();
+            // Mirror the per-halaqa render: a student is only counted under a teacher
+            // that actually teaches that halaqa.
+            var teacherInHalaqaSet = teacherPairs.Select(p => (p.HalaqaId, p.TeacherId)).ToHashSet();
 
             // 2. Batch load student attendance for the date
             var studentAttendances = await _context.Attendances
@@ -101,16 +122,72 @@ namespace KhairAPI.Services.Implementations
                 .Where(t => allStudentIds.Contains(t.StudentId))
                 .ToDictionaryAsync(t => t.StudentId);
 
-            // Build the response
-            var response = new FollowUpResponseDto
-            {
-                Date = date.ToString("yyyy-MM-dd"),
-                Halaqat = new List<FollowUpHalaqaDto>()
-            };
-
+            // Totals across ALL matching halaqat — computed from the lightweight pairs
+            // (no DTO building). Per-student accumulation mirrors the page render exactly.
             var totalStudentStats = new FollowUpAttendanceStatsDto();
             var totalTeacherStats = new FollowUpAttendanceStatsDto();
             var totalAchievement = new FollowUpAchievementDto();
+
+            foreach (var sp in studentPairs)
+            {
+                if (!teacherInHalaqaSet.Contains((sp.HalaqaId, sp.TeacherId)))
+                    continue;
+
+                var studentAttStatus = studentAttendanceMap.TryGetValue((sp.StudentId, sp.HalaqaId), out var sStatus)
+                    ? MapAttendanceStatus(sStatus)
+                    : "not_recorded";
+
+                totalStudentStats.Total++;
+                switch (studentAttStatus)
+                {
+                    case "present": totalStudentStats.Present++; break;
+                    case "absent": totalStudentStats.Absent++; break;
+                    default: totalStudentStats.NotRecorded++; break;
+                }
+
+                AccumulateAchievement(totalAchievement, BuildStudentAchievement(sp.StudentId, progressMap, studentTargets));
+            }
+
+            foreach (var tp in teacherPairs)
+            {
+                var teacherAttStatus = teacherAttendanceMap.TryGetValue((tp.TeacherId, tp.HalaqaId), out var tStatus)
+                    ? MapAttendanceStatus(tStatus)
+                    : "not_recorded";
+
+                totalTeacherStats.Total++;
+                switch (teacherAttStatus)
+                {
+                    case "present": totalTeacherStats.Present++; break;
+                    case "absent": totalTeacherStats.Absent++; break;
+                    default: totalTeacherStats.NotRecorded++; break;
+                }
+            }
+
+            // Build detailed DTOs ONLY for the current page of halaqat.
+            var pageHalaqat = await _context.Halaqat
+                .Include(h => h.HalaqaTeachers)
+                    .ThenInclude(ht => ht.Teacher)
+                .Include(h => h.StudentHalaqat)
+                    .ThenInclude(sh => sh.Student)
+                .AsSplitQuery()
+                .AsNoTracking()
+                .Where(h => pageHalaqaIds.Contains(h.Id))
+                .ToListAsync();
+
+            // Preserve the matching (by-name) order of the page slice
+            var pageOrder = pageHalaqaIds
+                .Select((id, idx) => (id, idx))
+                .ToDictionary(x => x.id, x => x.idx);
+            var halaqat = pageHalaqat.OrderBy(h => pageOrder[h.Id]).ToList();
+
+            var response = new FollowUpResponseDto
+            {
+                Date = date.ToString("yyyy-MM-dd"),
+                Halaqat = new List<FollowUpHalaqaDto>(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
 
             foreach (var halaqa in halaqat)
             {
@@ -222,11 +299,6 @@ namespace KhairAPI.Services.Implementations
                 halaqaDto.Teachers = halaqaDto.Teachers.OrderBy(t => t.FullName).ToList();
 
                 response.Halaqat.Add(halaqaDto);
-
-                // Accumulate totals
-                AccumulateStats(totalStudentStats, halaqaStudentStats);
-                AccumulateStats(totalTeacherStats, halaqaTeacherStats);
-                AccumulateAchievement(totalAchievement, halaqaAchievement);
             }
 
             response.TotalStudentStats = totalStudentStats;

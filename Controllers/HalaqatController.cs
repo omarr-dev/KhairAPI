@@ -74,18 +74,18 @@ namespace KhairAPI.Controllers
 
         [HttpGet("hierarchy")]
         [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
-        public async Task<IActionResult> GetHalaqatHierarchy()
+        public async Task<IActionResult> GetHalaqatHierarchy([FromQuery] HalaqaHierarchyFilterDto filter)
         {
             // HalaqaSupervisors get filtered hierarchy
             if (_currentUserService.IsHalaqaSupervisor)
             {
                 var supervisedHalaqaIds = await _currentUserService.GetSupervisedHalaqaIdsAsync();
-                var hierarchy = await _halaqaService.GetHalaqatHierarchyAsync(supervisedHalaqaIds);
+                var hierarchy = await _halaqaService.GetHalaqatHierarchyAsync(filter, supervisedHalaqaIds);
                 return Ok(hierarchy);
             }
 
             // Full Supervisors get complete hierarchy
-            var fullHierarchy = await _halaqaService.GetHalaqatHierarchyAsync();
+            var fullHierarchy = await _halaqaService.GetHalaqatHierarchyAsync(filter);
             return Ok(fullHierarchy);
         }
 

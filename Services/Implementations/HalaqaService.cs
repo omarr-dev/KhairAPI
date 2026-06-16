@@ -67,8 +67,11 @@ namespace KhairAPI.Services.Implementations
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync(List<int>? supervisedHalaqaIds = null)
+        public async Task<PaginatedResponse<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync(HalaqaHierarchyFilterDto filter, List<int>? supervisedHalaqaIds = null)
         {
+            var page = filter.Page < 1 ? 1 : filter.Page;
+            var pageSize = filter.PageSize < 1 ? 20 : filter.PageSize;
+
             // Students are intentionally NOT loaded here; clients fetch them
             // on demand via GetHalaqaStudentsAsync to keep this payload small.
             var query = _context.Halaqat
@@ -83,21 +86,29 @@ namespace KhairAPI.Services.Implementations
                 query = query.Where(h => supervisedHalaqaIds.Contains(h.Id));
             }
 
-            var halaqat = await query
-                .OrderBy(h => h.Name)
-                .ToListAsync();
-
-            // Single grouped query for active student counts per (halaqa, teacher)
-            var countsQuery = _context.StudentHalaqat
-                .AsNoTracking()
-                .Where(sh => sh.IsActive);
-
-            if (supervisedHalaqaIds != null)
+            // Search by halaqa name OR any of its teachers' names
+            if (!string.IsNullOrWhiteSpace(filter.Search))
             {
-                countsQuery = countsQuery.Where(sh => supervisedHalaqaIds.Contains(sh.HalaqaId));
+                var search = filter.Search.Trim();
+                query = query.Where(h =>
+                    h.Name.Contains(search) ||
+                    h.HalaqaTeachers.Any(ht => ht.Teacher.FullName.Contains(search)));
             }
 
-            var counts = await countsQuery
+            var totalCount = await query.CountAsync();
+
+            var halaqat = await query
+                .OrderBy(h => h.Name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // Single grouped query for active student counts per (halaqa, teacher),
+            // scoped to just this page's halaqat.
+            var pageHalaqaIds = halaqat.Select(h => h.Id).ToList();
+            var counts = await _context.StudentHalaqat
+                .AsNoTracking()
+                .Where(sh => sh.IsActive && pageHalaqaIds.Contains(sh.HalaqaId))
                 .GroupBy(sh => new { sh.HalaqaId, sh.TeacherId })
                 .Select(g => new { g.Key.HalaqaId, g.Key.TeacherId, Count = g.Count() })
                 .ToListAsync();
@@ -107,7 +118,7 @@ namespace KhairAPI.Services.Implementations
                 .GroupBy(c => c.HalaqaId)
                 .ToDictionary(g => g.Key, g => g.Sum(c => c.Count));
 
-            return halaqat.Select(h => new HalaqaHierarchyDto
+            var items = halaqat.Select(h => new HalaqaHierarchyDto
             {
                 Id = h.Id,
                 Name = h.Name,
@@ -128,6 +139,14 @@ namespace KhairAPI.Services.Implementations
                 .OrderBy(t => t.FullName)
                 .ToList()
             }).ToList();
+
+            return new PaginatedResponse<HalaqaHierarchyDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
         }
 
         public async Task<List<StudentInHalaqaWithTeacherDto>> GetHalaqaStudentsAsync(int halaqaId)

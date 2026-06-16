@@ -74,6 +74,17 @@ namespace KhairAPI.Services.Implementations
             var totalStudents = await studentQuery.CountAsync();
             var totalTeachers = await _context.Teachers.CountAsync();
 
+            // Distinct teachers assigned to at least one halaqa (scoped to supervised halaqat if filtered)
+            var assignedTeachersQuery = _context.HalaqaTeachers.AsNoTracking().AsQueryable();
+            if (halaqaFilter != null)
+            {
+                assignedTeachersQuery = assignedTeachersQuery.Where(ht => halaqaFilter.Contains(ht.HalaqaId));
+            }
+            var assignedTeachers = await assignedTeachersQuery
+                .Select(ht => ht.TeacherId)
+                .Distinct()
+                .CountAsync();
+
             // Combine Halaqat counts into a single query with projection
             var halaqatStats = await _context.Halaqat
                 .GroupBy(h => 1)
@@ -107,6 +118,7 @@ namespace KhairAPI.Services.Implementations
             {
                 TotalStudents = totalStudents,
                 TotalTeachers = totalTeachers,
+                AssignedTeachers = assignedTeachers,
                 TotalHalaqat = totalHalaqat,
                 ActiveHalaqat = activeHalaqat,
                 AverageAttendanceRate = Math.Round(averageAttendance, 1),

@@ -17,6 +17,16 @@ namespace KhairAPI.Models.DTOs
     }
 
     /// <summary>
+    /// Halaqa hierarchy filter / pagination parameters
+    /// </summary>
+    public class HalaqaHierarchyFilterDto
+    {
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 20;
+        public string? Search { get; set; }
+    }
+
+    /// <summary>
     /// Student filter parameters
     /// </summary>
     public class StudentFilterDto

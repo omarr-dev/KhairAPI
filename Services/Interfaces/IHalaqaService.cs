@@ -6,7 +6,7 @@ namespace KhairAPI.Services.Interfaces
     {
         Task<IEnumerable<HalaqaDto>> GetAllHalaqatAsync(int? teacherId = null, List<int>? supervisedHalaqaIds = null);
         Task<List<LookupDto>> GetHalaqatLookupAsync(int? teacherId = null, List<int>? supervisedHalaqaIds = null);
-        Task<IEnumerable<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync(List<int>? supervisedHalaqaIds = null);
+        Task<PaginatedResponse<HalaqaHierarchyDto>> GetHalaqatHierarchyAsync(HalaqaHierarchyFilterDto filter, List<int>? supervisedHalaqaIds = null);
         Task<List<StudentInHalaqaWithTeacherDto>> GetHalaqaStudentsAsync(int halaqaId);
         Task<HalaqaDto?> GetHalaqaByIdAsync(int id);
         Task<HalaqaDto> CreateHalaqaAsync(CreateHalaqaDto dto);

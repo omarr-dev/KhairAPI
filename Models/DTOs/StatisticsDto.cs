@@ -4,6 +4,8 @@ namespace KhairAPI.Models.DTOs
     {
         public int TotalStudents { get; set; }
         public int TotalTeachers { get; set; }
+        /// <summary>Distinct teachers assigned to at least one halaqa.</summary>
+        public int AssignedTeachers { get; set; }
         public int TotalHalaqat { get; set; }
         public int ActiveHalaqat { get; set; }
         public double AverageAttendanceRate { get; set; }

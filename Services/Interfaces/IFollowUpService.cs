@@ -4,6 +4,6 @@ namespace KhairAPI.Services.Interfaces
 {
     public interface IFollowUpService
     {
-        Task<FollowUpResponseDto> GetFollowUpDataAsync(DateTime date, int? teacherId = null, List<int>? supervisedHalaqaIds = null);
+        Task<FollowUpResponseDto> GetFollowUpDataAsync(DateTime date, int? teacherId = null, List<int>? supervisedHalaqaIds = null, int page = 1, int pageSize = 20);
     }
 }

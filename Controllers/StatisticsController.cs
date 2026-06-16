@@ -470,7 +470,7 @@ namespace KhairAPI.Controllers
         /// </summary>
         /// <param name="date">Optional: Date in YYYY-MM-DD format (default: today)</param>
         [HttpGet("follow-up")]
-        public async Task<IActionResult> GetFollowUpData([FromQuery] string? date = null)
+        public async Task<IActionResult> GetFollowUpData([FromQuery] string? date = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
             // Parse date
             DateTime parsedDate = DateTime.UtcNow.Date;
@@ -514,7 +514,7 @@ namespace KhairAPI.Controllers
             }
             // Full Supervisors see all (no filtering)
 
-            var result = await _followUpService.GetFollowUpDataAsync(parsedDate, teacherId, supervisedHalaqaIds);
+            var result = await _followUpService.GetFollowUpDataAsync(parsedDate, teacherId, supervisedHalaqaIds, page, pageSize);
             return Ok(result);
         }
     }

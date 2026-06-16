@@ -7,6 +7,12 @@ namespace KhairAPI.Models.DTOs
         public FollowUpAttendanceStatsDto TotalStudentStats { get; set; } = new();
         public FollowUpAttendanceStatsDto TotalTeacherStats { get; set; } = new();
         public FollowUpAchievementDto TotalAchievement { get; set; } = new();
+
+        // Pagination: Halaqat above is one page; the Total* stats cover all halaqat.
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalCount { get; set; }
+        public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 0;
     }
 
     public class FollowUpHalaqaDto
