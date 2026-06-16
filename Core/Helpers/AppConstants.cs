@@ -53,6 +53,7 @@ namespace KhairAPI.Core.Helpers
 
             // Students
             public const string StudentNotFound = "الطالب غير موجود";
+            public const string StudentIdNumberAlreadyExists = "يوجد طالب مسجل بنفس رقم الهوية مسبقاً";
             public const string CannotAssignStudent = "لا يمكن تعيين الطالب في هذه الحلقة";
             public const string AssignmentNotFound = "التعيين غير موجود";
             public const string StudentNotInHalaqa = "الطالب غير مسجل في هذه الحلقة مع هذا المعلم";

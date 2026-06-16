@@ -113,6 +113,20 @@ namespace KhairAPI.Controllers
             return Ok(students);
         }
 
+        [HttpGet("lookup")]
+        [Authorize(Policy = AppConstants.Policies.HalaqaSupervisorOrHigher)]
+        public async Task<IActionResult> LookupByIdNumber([FromQuery] string idNumber)
+        {
+            if (string.IsNullOrWhiteSpace(idNumber))
+                return BadRequest(new { message = "رقم الهوية مطلوب" });
+
+            var student = await _studentService.GetStudentByIdNumberAsync(idNumber);
+            if (student == null)
+                return NotFound(new { message = AppConstants.ErrorMessages.StudentNotFound });
+
+            return Ok(student);
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> GetStudentById(int id)
         {
@@ -166,7 +180,15 @@ namespace KhairAPI.Controllers
                 if (!canAccess)
                     return Forbid();
             }
-            
+
+            // Safety net: reject duplicate ID numbers even if the UI flow is bypassed
+            if (!string.IsNullOrWhiteSpace(dto.IdNumber))
+            {
+                var existing = await _studentService.GetStudentByIdNumberAsync(dto.IdNumber);
+                if (existing != null)
+                    return Conflict(new { message = AppConstants.ErrorMessages.StudentIdNumberAlreadyExists });
+            }
+
             var student = await _studentService.CreateStudentAsync(dto);
             return CreatedAtAction(nameof(GetStudentById), new { id = student.Id }, student);
         }

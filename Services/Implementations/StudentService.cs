@@ -261,6 +261,26 @@ namespace KhairAPI.Services.Implementations
             return student != null ? MapToDto(student) : null;
         }
 
+        public async Task<StudentDto?> GetStudentByIdNumberAsync(string idNumber)
+        {
+            if (string.IsNullOrWhiteSpace(idNumber))
+                return null;
+
+            var trimmed = idNumber.Trim();
+
+            var student = await _context.Students
+                .AsNoTracking()
+                .Include(s => s.StudentHalaqat)
+                    .ThenInclude(sh => sh.Halaqa)
+                .Include(s => s.StudentHalaqat)
+                    .ThenInclude(sh => sh.Teacher)
+                .AsSplitQuery()
+                .OrderBy(s => s.Id)
+                .FirstOrDefaultAsync(s => s.IdNumber == trimmed);
+
+            return student != null ? MapToDto(student) : null;
+        }
+
         public async Task<StudentDetailDto?> GetStudentDetailsAsync(int id)
         {
             var student = await _context.Students

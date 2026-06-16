@@ -13,6 +13,11 @@ namespace KhairAPI.Services.Interfaces
         Task<IEnumerable<StudentDto>> GetStudentsByHalaqasAsync(List<int> halaqaIds);
         Task<IEnumerable<StudentDto>> GetStudentsByTeacherAsync(int teacherId);
         Task<StudentDto?> GetStudentByIdAsync(int id);
+        /// <summary>
+        /// Look up a student by their national ID number (scoped to the current association).
+        /// Used to avoid creating duplicate student records.
+        /// </summary>
+        Task<StudentDto?> GetStudentByIdNumberAsync(string idNumber);
         Task<StudentDetailDto?> GetStudentDetailsAsync(int id);
         Task<StudentDto> CreateStudentAsync(CreateStudentDto dto);
         Task<StudentDto?> UpdateStudentAsync(int id, UpdateStudentDto dto);
