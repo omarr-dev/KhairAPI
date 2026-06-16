@@ -302,8 +302,8 @@ namespace KhairAPI.Data
                     .HasForeignKey(e => e.HalaqaId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // Create composite index for unique attendance per student per day
-                entity.HasIndex(e => new { e.StudentId, e.Date })
+                // Create composite index for unique attendance per student per halaqa per day
+                entity.HasIndex(e => new { e.StudentId, e.HalaqaId, e.Date })
                     .IsUnique();
 
                 // Multi-tenancy: Global query filter

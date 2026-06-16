@@ -29,7 +29,7 @@ namespace KhairAPI.Services.Implementations
 
             var existingAttendance = await _context.Attendances
                 .OrderBy(a => a.Id)
-                .FirstOrDefaultAsync(a => a.StudentId == dto.StudentId && a.Date.Date == dto.Date.Date);
+                .FirstOrDefaultAsync(a => a.StudentId == dto.StudentId && a.HalaqaId == dto.HalaqaId && a.Date.Date == dto.Date.Date);
 
             if (existingAttendance != null)
             {
@@ -61,7 +61,7 @@ namespace KhairAPI.Services.Implementations
                 .Include(a => a.Halaqa)
                 .AsSplitQuery()
                 .OrderBy(a => a.Id)
-                .FirstOrDefaultAsync(a => a.StudentId == dto.StudentId && a.Date.Date == dto.Date.Date);
+                .FirstOrDefaultAsync(a => a.StudentId == dto.StudentId && a.HalaqaId == dto.HalaqaId && a.Date.Date == dto.Date.Date);
 
             return MapToDto(savedAttendance!);
         }
