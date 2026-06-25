@@ -3,6 +3,7 @@ using KhairAPI.Data;
 using KhairAPI.Models.DTOs;
 using KhairAPI.Models.Entities;
 using KhairAPI.Services.Interfaces;
+using KhairAPI.Core.Helpers;
 using static KhairAPI.Core.Extensions.CacheKeys;
 
 namespace KhairAPI.Services.Implementations
@@ -511,17 +512,9 @@ namespace KhairAPI.Services.Implementations
             await _context.SaveChangesAsync();
         }
 
-        private static List<int> ParseActiveDays(string? activeDays)
-        {
-            if (string.IsNullOrWhiteSpace(activeDays))
-                return new List<int> { 0, 1, 2, 3, 4 }; // Default to Sun-Thu if not set
-
-            return activeDays
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(d => int.TryParse(d.Trim(), out var day) ? day : -1)
-                .Where(d => d >= 0 && d <= 6)
-                .ToList();
-        }
+        // Empty/unset ActiveDays => all 7 days. See ActiveDaysHelper.
+        private static HashSet<int> ParseActiveDays(string? activeDays) =>
+            ActiveDaysHelper.Parse(activeDays);
 
         /// <summary>
         /// Validates that the progress recording respects the student's memorization direction.

@@ -23,7 +23,14 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         // Add controllers
-        builder.Services.AddControllers();
+        builder.Services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                // Serialize/deserialize enums (e.g. UserRole) as their string names
+                // so the frontend can send "HalaqaSupervisor" instead of an integer.
+                options.JsonSerializerOptions.Converters.Add(
+                    new System.Text.Json.Serialization.JsonStringEnumConverter());
+            });
 
         // Response compression (large JSON payloads: hierarchy, follow-up, statistics)
         builder.Services.AddResponseCompression(options =>

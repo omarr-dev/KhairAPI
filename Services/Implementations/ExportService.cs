@@ -634,24 +634,7 @@ namespace KhairAPI.Services.Implementations
 
             foreach (var halaqa in halaqat)
             {
-                if (string.IsNullOrEmpty(halaqa.ActiveDays))
-                {
-                    for (int i = 0; i <= 6; i++)
-                    {
-                        activeDaysSet.Add(i);
-                    }
-                }
-                else
-                {
-                    var days = halaqa.ActiveDays.Split(',', StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var day in days)
-                    {
-                        if (int.TryParse(day.Trim(), out int dayNum))
-                        {
-                            activeDaysSet.Add(dayNum);
-                        }
-                    }
-                }
+                activeDaysSet.UnionWith(ActiveDaysHelper.Parse(halaqa.ActiveDays));
             }
 
             int workingDays = 0;

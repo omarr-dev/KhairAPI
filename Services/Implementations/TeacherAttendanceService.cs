@@ -555,24 +555,7 @@ namespace KhairAPI.Services.Implementations
 
             foreach (var halaqa in halaqat)
             {
-                if (string.IsNullOrEmpty(halaqa.ActiveDays))
-                {
-                    for (int i = 0; i <= 6; i++)
-                    {
-                        activeDaysSet.Add(i);
-                    }
-                }
-                else
-                {
-                    var days = halaqa.ActiveDays.Split(',', StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var day in days)
-                    {
-                        if (int.TryParse(day.Trim(), out int dayNum))
-                        {
-                            activeDaysSet.Add(dayNum);
-                        }
-                    }
-                }
+                activeDaysSet.UnionWith(ActiveDaysHelper.Parse(halaqa.ActiveDays));
             }
 
             int workingDays = 0;
@@ -587,16 +570,8 @@ namespace KhairAPI.Services.Implementations
             return workingDays;
         }
 
-        private static bool IsHalaqaActiveToday(string? activeDays, int dayOfWeek)
-        {
-            if (string.IsNullOrEmpty(activeDays))
-            {
-                return true;
-            }
-
-            var days = activeDays.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            return days.Any(d => int.TryParse(d.Trim(), out int day) && day == dayOfWeek);
-        }
+        private static bool IsHalaqaActiveToday(string? activeDays, int dayOfWeek) =>
+            ActiveDaysHelper.IsActiveOn(activeDays, dayOfWeek);
 
         private static readonly TimeZoneInfo KsaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Arab Standard Time");
 
