@@ -32,5 +32,17 @@ namespace KhairAPI.Services.Interfaces
         /// Gets all HalaqaSupervisor users in the association
         /// </summary>
         Task<IEnumerable<UserDto>> GetAllHalaqaSupervisorsAsync();
+
+        /// <summary>
+        /// Updates a HalaqaSupervisor's basic details (name and phone number).
+        /// Returns the updated user, or null if not found / not a HalaqaSupervisor.
+        /// </summary>
+        Task<UserDto?> UpdateHalaqaSupervisorAsync(int userId, UpdateUserDto dto);
+
+        /// <summary>
+        /// Soft-deletes a HalaqaSupervisor: deactivates the user account and all of
+        /// their halaqa assignments. Returns false if not found / not a HalaqaSupervisor.
+        /// </summary>
+        Task<bool> DeactivateHalaqaSupervisorAsync(int userId);
     }
 }

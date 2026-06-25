@@ -25,6 +25,7 @@ namespace KhairAPI.Services.Implementations
             var arabicDayName = AppConstants.ArabicDayNames.GetDayName(today.DayOfWeek);
 
             var halaqatQuery = _context.Halaqat
+                .AsNoTracking()
                 .Where(h => h.IsActive);
 
             // Apply halaqa filter for HalaqaSupervisors
@@ -41,8 +42,15 @@ namespace KhairAPI.Services.Implementations
                 .ToListAsync();
 
             var todayAttendance = await _context.TeacherAttendances
+                .AsNoTracking()
                 .Where(ta => ta.Date.Date == today)
                 .ToListAsync();
+
+            // Index attendance by (teacher, halaqa) so the per-teacher lookup below is O(1)
+            // instead of scanning the whole list for every teacher (O(teachers × records)).
+            var attendanceLookup = todayAttendance
+                .GroupBy(ta => (ta.TeacherId, ta.HalaqaId))
+                .ToDictionary(g => g.Key, g => g.First());
 
             var halaqatDto = new List<HalaqaTeachersAttendanceDto>();
             var totalTeachers = 0;
@@ -59,8 +67,7 @@ namespace KhairAPI.Services.Implementations
                 foreach (var halaqaTeacher in halaqa.HalaqaTeachers)
                 {
                     var teacher = halaqaTeacher.Teacher;
-                    var attendance = todayAttendance
-                        .FirstOrDefault(ta => ta.TeacherId == teacher.Id && ta.HalaqaId == halaqa.Id);
+                    attendanceLookup.TryGetValue((teacher.Id, halaqa.Id), out var attendance);
 
                     teachersDto.Add(new TeacherWithAttendanceDto
                     {

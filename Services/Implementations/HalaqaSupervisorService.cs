@@ -158,5 +158,64 @@ namespace KhairAPI.Services.Implementations
                 })
                 .ToListAsync();
         }
+
+        public async Task<UserDto?> UpdateHalaqaSupervisorAsync(int userId, UpdateUserDto dto)
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId && u.Role == UserRole.HalaqaSupervisor);
+
+            if (user == null)
+                return null;
+
+            // Format and validate the phone number (same rules as registration)
+            var formattedPhone = PhoneNumberValidator.Format(dto.PhoneNumber);
+            if (formattedPhone == null)
+                throw new InvalidOperationException(AppConstants.ErrorMessages.InvalidPhoneNumber);
+
+            // Ensure the phone number isn't already used by another user
+            if (await _context.Users.AnyAsync(u => u.PhoneNumber == formattedPhone && u.Id != userId))
+                throw new InvalidOperationException(AppConstants.ErrorMessages.PhoneNumberAlreadyExists);
+
+            user.FullName = dto.FullName;
+            user.PhoneNumber = formattedPhone;
+            await _context.SaveChangesAsync();
+
+            var supervisedHalaqaIds = await _context.HalaqaSupervisorAssignments
+                .AsNoTracking()
+                .Where(a => a.UserId == userId && a.IsActive)
+                .Select(a => a.HalaqaId)
+                .ToListAsync();
+
+            return new UserDto
+            {
+                Id = user.Id,
+                FullName = user.FullName,
+                PhoneNumber = user.PhoneNumber,
+                Role = user.Role.ToString(),
+                SupervisedHalaqaIds = supervisedHalaqaIds
+            };
+        }
+
+        public async Task<bool> DeactivateHalaqaSupervisorAsync(int userId)
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId && u.Role == UserRole.HalaqaSupervisor);
+
+            if (user == null)
+                return false;
+
+            user.IsActive = false;
+
+            // Deactivate all of their active halaqa assignments
+            var assignments = await _context.HalaqaSupervisorAssignments
+                .Where(a => a.UserId == userId && a.IsActive)
+                .ToListAsync();
+
+            foreach (var assignment in assignments)
+                assignment.IsActive = false;
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
     }
 }

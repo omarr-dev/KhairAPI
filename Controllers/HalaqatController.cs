@@ -220,6 +220,41 @@ namespace KhairAPI.Controllers
             return Ok(new { message = "تم إزالة مشرف الحلقة بنجاح" });
         }
 
+        /// <summary>
+        /// Update a HalaqaSupervisor's basic details (name and phone number)
+        /// </summary>
+        [HttpPut("supervisors/{userId}")]
+        [Authorize(Policy = AppConstants.Policies.SupervisorOnly)]
+        public async Task<IActionResult> UpdateHalaqaSupervisor(int userId, [FromBody] UpdateUserDto dto)
+        {
+            try
+            {
+                var updated = await _halaqaSupervisorService.UpdateHalaqaSupervisorAsync(userId, dto);
+                if (updated == null)
+                    return NotFound(new { message = "مشرف الحلقة غير موجود" });
+
+                return Ok(updated);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Deactivate (soft-delete) a HalaqaSupervisor and all of their assignments
+        /// </summary>
+        [HttpDelete("supervisors/{userId}")]
+        [Authorize(Policy = AppConstants.Policies.SupervisorOnly)]
+        public async Task<IActionResult> DeactivateHalaqaSupervisor(int userId)
+        {
+            var success = await _halaqaSupervisorService.DeactivateHalaqaSupervisorAsync(userId);
+            if (!success)
+                return NotFound(new { message = "مشرف الحلقة غير موجود" });
+
+            return Ok(new { message = "تم تعطيل مشرف الحلقة بنجاح" });
+        }
+
         #endregion
     }
 }
