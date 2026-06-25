@@ -128,24 +128,42 @@ namespace KhairAPI.Models.DTOs
     }
 
     /// <summary>
-    /// A teacher's own attendance status for today (self check-in feature)
+    /// A teacher's own attendance status for a single halaqa today (self check-in feature).
+    /// Each halaqa active today is checked in / out independently.
+    /// </summary>
+    public class TeacherSelfHalaqaAttendanceDto
+    {
+        public int HalaqaId { get; set; }
+        public string HalaqaName { get; set; } = string.Empty;
+        public string? TimeSlot { get; set; }
+        /// <summary>Recorded status for this halaqa today, or null if nothing recorded yet.</summary>
+        public AttendanceStatus? Status { get; set; }
+        /// <summary>True if a present record exists for this halaqa today.</summary>
+        public bool CheckedIn { get; set; }
+        /// <summary>True if a departure time is recorded for this halaqa today.</summary>
+        public bool CheckedOut { get; set; }
+        public TimeOnly? CheckInTime { get; set; }
+        public TimeOnly? CheckOutTime { get; set; }
+    }
+
+    /// <summary>
+    /// A teacher's own attendance status for today (self check-in feature).
+    /// Attendance is recorded per halaqa, so the teacher sees one entry per halaqa active today.
     /// </summary>
     public class TeacherSelfAttendanceStatusDto
     {
         public DateTime Date { get; set; }
         public string DayName { get; set; } = string.Empty; // Arabic day name
-        /// <summary>True if the teacher is already marked present today.</summary>
+        /// <summary>True when every halaqa active today has a present record.</summary>
         public bool CheckedIn { get; set; }
-        /// <summary>True if the teacher has already recorded a departure today.</summary>
+        /// <summary>True when every halaqa active today has a departure time recorded.</summary>
         public bool CheckedOut { get; set; }
-        /// <summary>Recorded arrival time (if any).</summary>
-        public TimeOnly? CheckInTime { get; set; }
-        /// <summary>Recorded departure time (if any).</summary>
-        public TimeOnly? CheckOutTime { get; set; }
         /// <summary>False when the teacher has no halaqa scheduled today (nothing to check in to).</summary>
         public bool HasActiveHalaqaToday { get; set; }
         /// <summary>Number of the teacher's halaqat that are active today.</summary>
         public int HalaqatCount { get; set; }
+        /// <summary>The teacher's halaqat active today, each checked in / out independently.</summary>
+        public List<TeacherSelfHalaqaAttendanceDto> Halaqat { get; set; } = new List<TeacherSelfHalaqaAttendanceDto>();
     }
 
     /// <summary>

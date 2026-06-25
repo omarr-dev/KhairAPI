@@ -37,27 +37,27 @@ namespace KhairAPI.Controllers
             return Ok(status);
         }
 
-        /// <summary>Mark the logged-in teacher present in their halaqat active today.</summary>
-        [HttpPost("check-in")]
-        public async Task<IActionResult> CheckIn()
+        /// <summary>Mark the logged-in teacher present in a single halaqa active today.</summary>
+        [HttpPost("check-in/{halaqaId:int}")]
+        public async Task<IActionResult> CheckIn(int halaqaId)
         {
             var teacherId = await _currentUserService.GetTeacherIdAsync();
             if (teacherId == null)
                 return BadRequest(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-            var result = await _teacherAttendanceService.SelfCheckInAsync(teacherId.Value);
+            var result = await _teacherAttendanceService.SelfCheckInAsync(teacherId.Value, halaqaId);
             return Ok(result);
         }
 
-        /// <summary>Record the logged-in teacher's departure time for today.</summary>
-        [HttpPost("check-out")]
-        public async Task<IActionResult> CheckOut()
+        /// <summary>Record the logged-in teacher's departure time for a single halaqa today.</summary>
+        [HttpPost("check-out/{halaqaId:int}")]
+        public async Task<IActionResult> CheckOut(int halaqaId)
         {
             var teacherId = await _currentUserService.GetTeacherIdAsync();
             if (teacherId == null)
                 return BadRequest(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
 
-            var result = await _teacherAttendanceService.SelfCheckOutAsync(teacherId.Value);
+            var result = await _teacherAttendanceService.SelfCheckOutAsync(teacherId.Value, halaqaId);
             return Ok(result);
         }
     }

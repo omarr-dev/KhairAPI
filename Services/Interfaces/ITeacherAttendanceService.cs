@@ -18,16 +18,16 @@ namespace KhairAPI.Services.Interfaces
         Task<TeacherSelfAttendanceStatusDto> GetSelfAttendanceStatusAsync(int teacherId);
 
         /// <summary>
-        /// Marks the teacher present in all of their halaqat that are active today.
-        /// Existing records (e.g. already set by a supervisor) are left untouched.
+        /// Marks the teacher present in a single halaqa that is active today.
+        /// An existing record (e.g. already set by a supervisor) is left untouched.
         /// </summary>
-        Task<TeacherSelfCheckInResultDto> SelfCheckInAsync(int teacherId);
+        Task<TeacherSelfCheckInResultDto> SelfCheckInAsync(int teacherId, int halaqaId);
 
         /// <summary>
-        /// Records the teacher's departure time on today's present records.
-        /// Requires the teacher to be checked in first.
+        /// Records the teacher's departure time on today's present record for a single halaqa.
+        /// Requires the teacher to be checked in to that halaqa first.
         /// </summary>
-        Task<TeacherSelfCheckInResultDto> SelfCheckOutAsync(int teacherId);
+        Task<TeacherSelfCheckInResultDto> SelfCheckOutAsync(int teacherId, int halaqaId);
     }
 }
 

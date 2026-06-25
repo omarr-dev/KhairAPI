@@ -379,42 +379,50 @@ namespace KhairAPI.Services.Implementations
             var today = DateTime.UtcNow.Date;
             var dayOfWeek = (int)today.DayOfWeek;
 
-            var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
+            var activeHalaqat = await GetTeacherActiveHalaqatTodayAsync(teacherId, dayOfWeek);
 
-            var checkedIn = false;
-            var checkedOut = false;
-            TimeOnly? checkInTime = null;
-            TimeOnly? checkOutTime = null;
+            var halaqatDto = new List<TeacherSelfHalaqaAttendanceDto>();
 
-            if (activeHalaqaIds.Count > 0)
+            if (activeHalaqat.Count > 0)
             {
+                var activeHalaqaIds = activeHalaqat.Select(h => h.Id).ToList();
                 var todayRecords = await _context.TeacherAttendances
                     .Where(ta => ta.TeacherId == teacherId &&
                                  activeHalaqaIds.Contains(ta.HalaqaId) &&
                                  ta.Date.Date == today)
                     .ToListAsync();
 
-                checkedIn = todayRecords.Any(ta => ta.Status == AttendanceStatus.Present);
-                checkedOut = todayRecords.Any(ta => ta.CheckOutTime != null);
-                // Earliest arrival / latest departure across the teacher's halaqat today
-                checkInTime = todayRecords.Where(ta => ta.CheckInTime != null).Min(ta => ta.CheckInTime);
-                checkOutTime = todayRecords.Where(ta => ta.CheckOutTime != null).Max(ta => ta.CheckOutTime);
+                foreach (var halaqa in activeHalaqat)
+                {
+                    var record = todayRecords.FirstOrDefault(ta => ta.HalaqaId == halaqa.Id);
+                    halaqatDto.Add(new TeacherSelfHalaqaAttendanceDto
+                    {
+                        HalaqaId = halaqa.Id,
+                        HalaqaName = halaqa.Name,
+                        TimeSlot = halaqa.TimeSlot,
+                        Status = record?.Status,
+                        CheckedIn = record?.Status == AttendanceStatus.Present,
+                        CheckedOut = record?.CheckOutTime != null,
+                        CheckInTime = record?.CheckInTime,
+                        CheckOutTime = record?.CheckOutTime
+                    });
+                }
             }
 
             return new TeacherSelfAttendanceStatusDto
             {
                 Date = today,
                 DayName = AppConstants.ArabicDayNames.GetDayName(today.DayOfWeek),
-                CheckedIn = checkedIn,
-                CheckedOut = checkedOut,
-                CheckInTime = checkInTime,
-                CheckOutTime = checkOutTime,
-                HasActiveHalaqaToday = activeHalaqaIds.Count > 0,
-                HalaqatCount = activeHalaqaIds.Count
+                // Aggregates: "done" only when every active halaqa is handled.
+                CheckedIn = halaqatDto.Count > 0 && halaqatDto.All(h => h.CheckedIn),
+                CheckedOut = halaqatDto.Count > 0 && halaqatDto.All(h => h.CheckedOut),
+                HasActiveHalaqaToday = halaqatDto.Count > 0,
+                HalaqatCount = halaqatDto.Count,
+                Halaqat = halaqatDto
             };
         }
 
-        public async Task<TeacherSelfCheckInResultDto> SelfCheckInAsync(int teacherId)
+        public async Task<TeacherSelfCheckInResultDto> SelfCheckInAsync(int teacherId, int halaqaId)
         {
             if (_tenantService.CurrentAssociationId == null)
             {
@@ -425,93 +433,78 @@ namespace KhairAPI.Services.Implementations
             var dayOfWeek = (int)today.DayOfWeek;
 
             var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
-            if (activeHalaqaIds.Count == 0)
+            if (!activeHalaqaIds.Contains(halaqaId))
             {
-                throw new InvalidOperationException("لا توجد حلقة نشطة لك اليوم");
+                throw new InvalidOperationException("هذه الحلقة غير نشطة لك اليوم");
             }
 
-            // Skip halaqat that already have a record today (don't overwrite a supervisor's entry)
-            var alreadyRecorded = await _context.TeacherAttendances
-                .Where(ta => ta.TeacherId == teacherId &&
-                             activeHalaqaIds.Contains(ta.HalaqaId) &&
-                             ta.Date.Date == today)
-                .Select(ta => ta.HalaqaId)
-                .ToListAsync();
-            var alreadyRecordedSet = alreadyRecorded.ToHashSet();
+            // A record may already exist (e.g. set by a supervisor) — don't overwrite it.
+            var existing = await _context.TeacherAttendances
+                .FirstOrDefaultAsync(ta => ta.TeacherId == teacherId &&
+                                           ta.HalaqaId == halaqaId &&
+                                           ta.Date.Date == today);
 
-            var nowTime = NowKsaTime();
-            var created = 0;
-            foreach (var halaqaId in activeHalaqaIds)
+            if (existing != null)
             {
-                if (alreadyRecordedSet.Contains(halaqaId))
-                    continue;
-
-                _context.TeacherAttendances.Add(new TeacherAttendance
+                return new TeacherSelfCheckInResultDto
                 {
-                    TeacherId = teacherId,
-                    HalaqaId = halaqaId,
-                    Date = today,
-                    Status = AttendanceStatus.Present,
-                    CheckInTime = nowTime,
-                    CreatedAt = DateTime.UtcNow,
-                    AssociationId = _tenantService.CurrentAssociationId.Value
-                });
-                created++;
+                    CheckedIn = true,
+                    RecordsCreated = 0,
+                    Message = AppConstants.SuccessMessages.TeacherCheckedIn
+                };
             }
 
-            if (created > 0)
+            _context.TeacherAttendances.Add(new TeacherAttendance
             {
-                await _context.SaveChangesAsync();
-            }
+                TeacherId = teacherId,
+                HalaqaId = halaqaId,
+                Date = today,
+                Status = AttendanceStatus.Present,
+                CheckInTime = NowKsaTime(),
+                CreatedAt = DateTime.UtcNow,
+                AssociationId = _tenantService.CurrentAssociationId.Value
+            });
+            await _context.SaveChangesAsync();
 
             return new TeacherSelfCheckInResultDto
             {
                 CheckedIn = true,
-                RecordsCreated = created,
+                RecordsCreated = 1,
                 Message = AppConstants.SuccessMessages.TeacherCheckedIn
             };
         }
 
-        public async Task<TeacherSelfCheckInResultDto> SelfCheckOutAsync(int teacherId)
+        public async Task<TeacherSelfCheckInResultDto> SelfCheckOutAsync(int teacherId, int halaqaId)
         {
             var today = DateTime.UtcNow.Date;
             var dayOfWeek = (int)today.DayOfWeek;
 
             var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
-            if (activeHalaqaIds.Count == 0)
+            if (!activeHalaqaIds.Contains(halaqaId))
             {
-                throw new InvalidOperationException("لا توجد حلقة نشطة لك اليوم");
+                throw new InvalidOperationException("هذه الحلقة غير نشطة لك اليوم");
             }
 
-            // The teacher must already be checked in (present) today before they can check out.
-            var todayRecords = await _context.TeacherAttendances
-                .Where(ta => ta.TeacherId == teacherId &&
-                             activeHalaqaIds.Contains(ta.HalaqaId) &&
-                             ta.Date.Date == today &&
-                             ta.Status == AttendanceStatus.Present)
-                .ToListAsync();
+            // The teacher must already be checked in (present) for this halaqa before checking out.
+            var record = await _context.TeacherAttendances
+                .FirstOrDefaultAsync(ta => ta.TeacherId == teacherId &&
+                                           ta.HalaqaId == halaqaId &&
+                                           ta.Date.Date == today &&
+                                           ta.Status == AttendanceStatus.Present);
 
-            if (todayRecords.Count == 0)
+            if (record == null)
             {
                 throw new InvalidOperationException(AppConstants.ErrorMessages.NotCheckedInYet);
             }
 
             var nowTime = NowKsaTime();
             var updated = 0;
-            foreach (var record in todayRecords)
+            // Skip if already checked out, and don't let departure precede arrival.
+            if (record.CheckOutTime == null &&
+                !(record.CheckInTime != null && nowTime < record.CheckInTime.Value))
             {
-                // Don't let departure precede arrival; skip records already checked out.
-                if (record.CheckOutTime != null)
-                    continue;
-                if (record.CheckInTime != null && nowTime < record.CheckInTime.Value)
-                    continue;
-
                 record.CheckOutTime = nowTime;
                 updated++;
-            }
-
-            if (updated > 0)
-            {
                 await _context.SaveChangesAsync();
             }
 
@@ -528,15 +521,24 @@ namespace KhairAPI.Services.Implementations
         /// </summary>
         private async Task<List<int>> GetTeacherActiveHalaqaIdsTodayAsync(int teacherId, int dayOfWeek)
         {
+            var halaqat = await GetTeacherActiveHalaqatTodayAsync(teacherId, dayOfWeek);
+            return halaqat.Select(h => h.Id).ToList();
+        }
+
+        /// <summary>
+        /// Returns the teacher's halaqat (id, name, time slot) that are active (scheduled) today.
+        /// </summary>
+        private async Task<List<(int Id, string Name, string? TimeSlot)>> GetTeacherActiveHalaqatTodayAsync(int teacherId, int dayOfWeek)
+        {
             var halaqat = await _context.HalaqaTeachers
                 .Where(ht => ht.TeacherId == teacherId && ht.Halaqa.IsActive)
-                .Select(ht => new { ht.HalaqaId, ht.Halaqa.ActiveDays })
+                .Select(ht => new { ht.HalaqaId, ht.Halaqa.Name, ht.Halaqa.TimeSlot, ht.Halaqa.ActiveDays })
                 .ToListAsync();
 
             return halaqat
                 .Where(h => IsHalaqaActiveToday(h.ActiveDays, dayOfWeek))
-                .Select(h => h.HalaqaId)
-                .Distinct()
+                .GroupBy(h => h.HalaqaId)
+                .Select(g => (g.Key, g.First().Name, g.First().TimeSlot))
                 .ToList();
         }
 
