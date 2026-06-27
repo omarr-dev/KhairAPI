@@ -471,8 +471,8 @@ namespace KhairAPI.Services.Implementations
                     ? DateTime.SpecifyKind(dto.DateOfBirth.Value, DateTimeKind.Utc)
                     : null,
                 GuardianName = dto.GuardianName,
-                GuardianPhone = dto.GuardianPhone,
-                Phone = dto.Phone,
+                GuardianPhone = Core.Helpers.PhoneNumberValidator.Format(dto.GuardianPhone),
+                Phone = Core.Helpers.PhoneNumberValidator.Format(dto.Phone),
                 IdNumber = dto.IdNumber,
                 Nationality = dto.Nationality,
                 Office = dto.Office,
@@ -521,8 +521,8 @@ namespace KhairAPI.Services.Implementations
                 ? DateTime.SpecifyKind(dto.DateOfBirth.Value, DateTimeKind.Utc)
                 : null;
             student.GuardianName = dto.GuardianName;
-            student.GuardianPhone = dto.GuardianPhone;
-            student.Phone = dto.Phone;
+            student.GuardianPhone = Core.Helpers.PhoneNumberValidator.Format(dto.GuardianPhone);
+            student.Phone = Core.Helpers.PhoneNumberValidator.Format(dto.Phone);
             student.IdNumber = dto.IdNumber;
             student.Nationality = dto.Nationality;
             student.Office = dto.Office;

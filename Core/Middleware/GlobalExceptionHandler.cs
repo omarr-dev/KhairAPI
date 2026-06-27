@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using KhairAPI.Core.Responses;
+using Sentry;
 
 namespace KhairAPI.Core.Middleware
 {
@@ -69,6 +70,9 @@ namespace KhairAPI.Core.Middleware
                     break;
 
                 default:
+                    // Only unexpected server errors are reported to Sentry. The cases
+                    // above (401/404/400) are expected business outcomes, not bugs.
+                    SentrySdk.CaptureException(exception);
                     response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     errorDetails.StatusCode = (int)HttpStatusCode.InternalServerError;
                     errorDetails.Message = "حدث خطأ داخلي في الخادم";

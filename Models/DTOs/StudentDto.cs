@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using KhairAPI.Core.Attributes;
 using KhairAPI.Models.Entities;
 
 namespace KhairAPI.Models.DTOs
@@ -93,10 +94,10 @@ namespace KhairAPI.Models.DTOs
 
         public string? GuardianName { get; set; }
 
-        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف ولي الأمر غير صالح.")]
+        [SaudiPhoneNumber(ErrorMessage = "رقم هاتف ولي الأمر غير صالح.")]
         public string? GuardianPhone { get; set; }
 
-        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف الطالب ")]
+        [SaudiPhoneNumber(ErrorMessage = "رقم هاتف الطالب غير صالح.")]
         public string? Phone { get; set; }
 
         public string? IdNumber { get; set; }
@@ -130,10 +131,10 @@ namespace KhairAPI.Models.DTOs
 
         public string? GuardianName { get; set; }
 
-        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف ولي الأمر غير صالح. يجب أن يبدأ بـ +966")]
+        [SaudiPhoneNumber(ErrorMessage = "رقم هاتف ولي الأمر غير صالح.")]
         public string? GuardianPhone { get; set; }
 
-        [RegularExpression(@"^\+9665\d{8}$", ErrorMessage = "رقم هاتف الطالب غير صالح. يجب أن يبدأ بـ +966")]
+        [SaudiPhoneNumber(ErrorMessage = "رقم هاتف الطالب غير صالح.")]
         public string? Phone { get; set; }
 
         public string? IdNumber { get; set; }

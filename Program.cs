@@ -22,6 +22,11 @@ public class Program
 
         var builder = WebApplication.CreateBuilder(args);
 
+        // Sentry error monitoring. Options (Dsn, TracesSampleRate, etc.) are read
+        // from the "Sentry" section in appsettings.json. The environment is taken
+        // from ASPNETCORE_ENVIRONMENT automatically.
+        builder.WebHost.UseSentry();
+
         // Add controllers
         builder.Services.AddControllers()
             .AddJsonOptions(options =>
