@@ -332,7 +332,12 @@ namespace KhairAPI.Services.Implementations
                     TotalProgressRecords = g.Count(),
                     TotalVersesMemorized = g.Sum(p => p.Type == ProgressType.Memorization ? p.ToVerse - p.FromVerse + 1 : 0),
                     TotalVersesRevised = g.Sum(p => p.Type == ProgressType.Revision ? p.ToVerse - p.FromVerse + 1 : 0),
-                    AverageQuality = g.Average(p => (double)(int)p.Quality)
+                    // Quality is persisted as text (HasConversion<string>), so casting it to
+                    // an integer in SQL fails (22P02). Count each rating with string equality
+                    // instead and compute the weighted average client-side below.
+                    VeryGoodCount = g.Count(p => p.Quality == QualityRating.VeryGood),
+                    GoodCount = g.Count(p => p.Quality == QualityRating.Good),
+                    AcceptableCount = g.Count(p => p.Quality == QualityRating.Acceptable)
                 })
                 .FirstOrDefaultAsync();
 
@@ -344,7 +349,11 @@ namespace KhairAPI.Services.Implementations
             string averageQualityText = "غير محدد";
             if (totalProgressRecords > 0)
             {
-                averageQuality = aggregates!.AverageQuality;
+                // Excellent has weight 0, so it is omitted from the weighted sum.
+                var weightedQualitySum = aggregates!.VeryGoodCount * 1
+                    + aggregates.GoodCount * 2
+                    + aggregates.AcceptableCount * 3;
+                averageQuality = (double)weightedQualitySum / totalProgressRecords;
                 averageQualityText = averageQuality switch
                 {
                     < 0.5 => "ممتاز",
