@@ -33,8 +33,6 @@ namespace KhairAPI.Core.Middleware
 
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
-            _logger.LogError(exception, "An unhandled exception occurred: {Message}", exception.Message);
-
             var response = context.Response;
             response.ContentType = "application/json";
 
@@ -49,29 +47,35 @@ namespace KhairAPI.Core.Middleware
                     response.StatusCode = (int)HttpStatusCode.Unauthorized;
                     errorDetails.StatusCode = (int)HttpStatusCode.Unauthorized;
                     errorDetails.Message = "غير مصرح لك بالوصول";
+                    _logger.LogWarning(exception, "Handled business exception: {Message}", exception.Message);
                     break;
 
                 case KeyNotFoundException:
                     response.StatusCode = (int)HttpStatusCode.NotFound;
                     errorDetails.StatusCode = (int)HttpStatusCode.NotFound;
                     errorDetails.Message = "المورد المطلوب غير موجود";
+                    _logger.LogWarning(exception, "Handled business exception: {Message}", exception.Message);
                     break;
 
                 case InvalidOperationException:
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     errorDetails.StatusCode = (int)HttpStatusCode.BadRequest;
                     errorDetails.Message = exception.Message;
+                    _logger.LogWarning(exception, "Handled business exception: {Message}", exception.Message);
                     break;
 
                 case ArgumentException:
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     errorDetails.StatusCode = (int)HttpStatusCode.BadRequest;
                     errorDetails.Message = exception.Message;
+                    _logger.LogWarning(exception, "Handled business exception: {Message}", exception.Message);
                     break;
 
                 default:
-                    // Only unexpected server errors are reported to Sentry. The cases
-                    // above (401/404/400) are expected business outcomes, not bugs.
+                    // Only unexpected server errors are logged as errors and reported to
+                    // Sentry. The cases above (401/404/400) are expected business outcomes,
+                    // not bugs, so they are logged as warnings and never reach Sentry.
+                    _logger.LogError(exception, "An unhandled exception occurred: {Message}", exception.Message);
                     SentrySdk.CaptureException(exception);
                     response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     errorDetails.StatusCode = (int)HttpStatusCode.InternalServerError;
