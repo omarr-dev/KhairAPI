@@ -598,6 +598,12 @@ namespace KhairAPI.Services.Implementations
         /// <summary>Rejects a departure time that is not strictly after the arrival time.</summary>
         private static void ValidateTimes(TimeOnly? checkIn, TimeOnly? checkOut)
         {
+            // A departure time with no arrival time is invalid.
+            if (checkOut != null && checkIn == null)
+            {
+                throw new InvalidOperationException(AppConstants.ErrorMessages.NotCheckedInYet);
+            }
+
             if (checkIn != null && checkOut != null && checkOut.Value <= checkIn.Value)
             {
                 throw new InvalidOperationException(AppConstants.ErrorMessages.InvalidDepartureTime);
