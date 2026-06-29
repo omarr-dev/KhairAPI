@@ -284,7 +284,9 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> DeleteProgressRecordAsync(int id, int userId)
         {
-            var record = await _context.ProgressRecords.FindAsync(id);
+            // FirstOrDefaultAsync (not FindAsync) so the tenant global query filter applies
+            // and a record from another association cannot be deleted by id.
+            var record = await _context.ProgressRecords.FirstOrDefaultAsync(r => r.Id == id);
             if (record == null)
                 return false;
 

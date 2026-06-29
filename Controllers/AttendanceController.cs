@@ -13,10 +13,17 @@ namespace KhairAPI.Controllers
     public class AttendanceController : ControllerBase
     {
         private readonly IAttendanceService _attendanceService;
+        private readonly ICurrentUserService _currentUserService;
+        private readonly IStudentService _studentService;
 
-        public AttendanceController(IAttendanceService attendanceService)
+        public AttendanceController(
+            IAttendanceService attendanceService,
+            ICurrentUserService currentUserService,
+            IStudentService studentService)
         {
             _attendanceService = attendanceService;
+            _currentUserService = currentUserService;
+            _studentService = studentService;
         }
 
         [HttpPost]
@@ -39,6 +46,20 @@ namespace KhairAPI.Controllers
         [HttpGet("halaqa/{halaqaId}/date/{date}")]
         public async Task<IActionResult> GetAttendanceByDate(int halaqaId, DateTime date)
         {
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+                if (!await _studentService.DoesTeacherTeachHalaqaAsync(teacherId.Value, halaqaId))
+                    return Forbid();
+            }
+            else if (_currentUserService.IsHalaqaSupervisor)
+            {
+                if (!await _currentUserService.CanAccessHalaqaAsync(halaqaId))
+                    return Forbid();
+            }
+
             date = DateTime.SpecifyKind(date, DateTimeKind.Utc);
             var summary = await _attendanceService.GetAttendanceByDateAsync(halaqaId, date);
             return Ok(summary);
@@ -47,9 +68,13 @@ namespace KhairAPI.Controllers
         [HttpGet("student/{studentId}")]
         public async Task<IActionResult> GetStudentAttendance(
             int studentId, 
-            [FromQuery] DateTime? fromDate = null, 
+            [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null)
         {
+            var deny = await EnsureStudentAccessAsync(studentId);
+            if (deny != null)
+                return deny;
+
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : (DateTime?)null;
             var to = toDate.HasValue ? DateTime.SpecifyKind(toDate.Value, DateTimeKind.Utc) : (DateTime?)null;
             var records = await _attendanceService.GetStudentAttendanceAsync(studentId, from, to);
@@ -62,10 +87,28 @@ namespace KhairAPI.Controllers
             [FromQuery] DateTime fromDate, 
             [FromQuery] DateTime toDate)
         {
+            var deny = await EnsureStudentAccessAsync(studentId);
+            if (deny != null)
+                return deny;
+
             fromDate = DateTime.SpecifyKind(fromDate, DateTimeKind.Utc);
             toDate = DateTime.SpecifyKind(toDate, DateTimeKind.Utc);
             var summary = await _attendanceService.GetStudentAttendanceSummaryAsync(studentId, fromDate, toDate);
             return Ok(summary);
+        }
+
+        // Teachers may only read attendance for students assigned to them; supervisors are unrestricted.
+        private async Task<IActionResult?> EnsureStudentAccessAsync(int studentId)
+        {
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+                if (!await _studentService.IsStudentAssignedToTeacherAsync(studentId, teacherId.Value))
+                    return Forbid();
+            }
+            return null;
         }
 
         [HttpPut("{id}")]

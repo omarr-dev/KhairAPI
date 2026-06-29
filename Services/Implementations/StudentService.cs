@@ -527,7 +527,8 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<StudentDto?> UpdateStudentAsync(int id, UpdateStudentDto dto)
         {
-            var student = await _context.Students.FindAsync(id);
+            // FirstOrDefaultAsync (not FindAsync) so the tenant global query filter applies.
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id);
             if (student == null)
                 return null;
 
@@ -552,7 +553,8 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<StudentDto?> UpdateMemorizationAsync(int id, UpdateMemorizationDto dto)
         {
-            var student = await _context.Students.FindAsync(id);
+            // FirstOrDefaultAsync (not FindAsync) so the tenant global query filter applies.
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id);
             if (student == null)
                 return null;
 
@@ -576,7 +578,8 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> DeleteStudentAsync(int id)
         {
-            var student = await _context.Students.FindAsync(id);
+            // FirstOrDefaultAsync (not FindAsync) so the tenant global query filter applies.
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id);
             if (student == null)
                 return false;
 

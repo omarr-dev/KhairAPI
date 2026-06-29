@@ -69,6 +69,15 @@ namespace KhairAPI.Controllers
         [HttpGet("student/{studentId}")]
         public async Task<IActionResult> GetStudentProgress(int studentId, [FromQuery] DateTime? fromDate = null)
         {
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+                if (!await _progressService.TeacherHasAccessToStudentAsync(teacherId.Value, studentId))
+                    return Forbid();
+            }
+
             var from = fromDate.HasValue ? DateTime.SpecifyKind(fromDate.Value, DateTimeKind.Utc) : (DateTime?)null;
             var progress = await _progressService.GetProgressByStudentAsync(studentId, from);
             return Ok(progress);
@@ -77,6 +86,15 @@ namespace KhairAPI.Controllers
         [HttpGet("student/{studentId}/summary")]
         public async Task<IActionResult> GetStudentProgressSummary(int studentId)
         {
+            if (_currentUserService.IsTeacher)
+            {
+                var teacherId = await _currentUserService.GetTeacherIdAsync();
+                if (!teacherId.HasValue)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.CannotIdentifyTeacher });
+                if (!await _progressService.TeacherHasAccessToStudentAsync(teacherId.Value, studentId))
+                    return Forbid();
+            }
+
             var summary = await _progressService.GetStudentProgressSummaryAsync(studentId);
             return Ok(summary);
         }

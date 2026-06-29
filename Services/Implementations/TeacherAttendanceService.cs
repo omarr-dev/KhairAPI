@@ -217,7 +217,9 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> UpdateAttendanceAsync(int id, UpdateTeacherAttendanceDto dto)
         {
-            var attendance = await _context.TeacherAttendances.FindAsync(id);
+            // FirstOrDefaultAsync (not FindAsync) so the tenant global query filter applies
+            // and a record from another association cannot be modified by id.
+            var attendance = await _context.TeacherAttendances.FirstOrDefaultAsync(a => a.Id == id);
             if (attendance == null)
                 return false;
 
@@ -234,7 +236,8 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<bool> DeleteAttendanceAsync(int id)
         {
-            var attendance = await _context.TeacherAttendances.FindAsync(id);
+            // FirstOrDefaultAsync (not FindAsync) so the tenant global query filter applies.
+            var attendance = await _context.TeacherAttendances.FirstOrDefaultAsync(a => a.Id == id);
             if (attendance == null)
                 return false;
 
