@@ -11,8 +11,8 @@ namespace KhairAPI.Core.Helpers
     /// </summary>
     public static class PhoneNumberValidator
     {
-        // Valid Saudi mobile prefixes (50, 53, 54, 55, 56, 57, 58, 59)
-        private static readonly string[] ValidPrefixes = { "50", "53", "54", "55", "56", "57", "58", "59" };
+        // Valid Saudi mobile prefixes (50, 51, 52, 53, 54, 55, 56, 57, 58, 59)
+        private static readonly string[] ValidPrefixes = { "50", "51", "52", "53", "54", "55", "56", "57", "58", "59" };
 
         // Normalized format: +966 followed by 5 and 8 more digits
         private const string PhonePattern = @"^\+9665[0-9]{8}$";
