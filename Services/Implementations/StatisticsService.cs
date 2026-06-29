@@ -72,7 +72,6 @@ namespace KhairAPI.Services.Implementations
 
             // Execute queries sequentially (DbContext is not thread-safe)
             var totalStudents = await studentQuery.CountAsync();
-            var totalTeachers = await _context.Teachers.CountAsync();
 
             // Distinct teachers assigned to at least one halaqa (scoped to supervised halaqat if filtered)
             var assignedTeachersQuery = _context.HalaqaTeachers.AsNoTracking().AsQueryable();
@@ -85,8 +84,18 @@ namespace KhairAPI.Services.Implementations
                 .Distinct()
                 .CountAsync();
 
-            // Combine Halaqat counts into a single query with projection
-            var halaqatStats = await _context.Halaqat
+            // Total teachers: scoped to supervised halaqat when filtered, otherwise tenant-wide
+            var totalTeachers = halaqaFilter != null
+                ? assignedTeachers
+                : await _context.Teachers.CountAsync();
+
+            // Combine Halaqat counts into a single query with projection (scoped to supervised halaqat if filtered)
+            var halaqatQuery = _context.Halaqat.AsNoTracking().AsQueryable();
+            if (halaqaFilter != null)
+            {
+                halaqatQuery = halaqatQuery.Where(h => halaqaFilter.Contains(h.Id));
+            }
+            var halaqatStats = await halaqatQuery
                 .GroupBy(h => 1)
                 .Select(g => new { Total = g.Count(), Active = g.Count(h => h.IsActive) })
                 .OrderBy(x => 1)
@@ -394,12 +403,33 @@ namespace KhairAPI.Services.Implementations
             var today = DateTime.UtcNow.Date;
             var weekAgo = today.AddDays(-7);
 
-            // Execute queries sequentially (DbContext is not thread-safe)
-            var totalStudents = await _context.Students.CountAsync();
-            var totalTeachers = await _context.Teachers.CountAsync();
-            var totalHalaqat = await _context.Halaqat.Where(h => h.IsActive).CountAsync();
-            var todayAttendance = await _context.Attendances.AsNoTracking().Where(a => a.Date == today).ToListAsync();
-            var todayProgress = await _context.ProgressRecords.AsNoTracking().Where(p => p.Date == today).ToListAsync();
+            // Students assigned to the supervised halaqat (used to scope counts when filtered)
+            HashSet<int>? scopedStudentIds = null;
+            if (halaqaFilter != null)
+            {
+                scopedStudentIds = (await _context.StudentHalaqat.AsNoTracking()
+                    .Where(sh => halaqaFilter.Contains(sh.HalaqaId) && sh.IsActive)
+                    .Select(sh => sh.StudentId)
+                    .ToListAsync())
+                    .ToHashSet();
+            }
+
+            // Execute queries sequentially (DbContext is not thread-safe) — all scoped to supervised halaqat when filtered
+            var totalStudents = scopedStudentIds != null
+                ? scopedStudentIds.Count
+                : await _context.Students.CountAsync();
+            var totalTeachers = halaqaFilter != null
+                ? await _context.HalaqaTeachers.AsNoTracking()
+                    .Where(ht => halaqaFilter.Contains(ht.HalaqaId))
+                    .Select(ht => ht.TeacherId).Distinct().CountAsync()
+                : await _context.Teachers.CountAsync();
+            var totalHalaqat = halaqaFilter != null
+                ? await _context.Halaqat.Where(h => h.IsActive && halaqaFilter.Contains(h.Id)).CountAsync()
+                : await _context.Halaqat.Where(h => h.IsActive).CountAsync();
+            var todayAttendance = await _context.Attendances.AsNoTracking()
+                .Where(a => a.Date == today && (halaqaFilter == null || halaqaFilter.Contains(a.HalaqaId))).ToListAsync();
+            var todayProgress = await _context.ProgressRecords.AsNoTracking()
+                .Where(p => p.Date == today && (halaqaFilter == null || halaqaFilter.Contains(p.HalaqaId))).ToListAsync();
 
             var todayAttendanceRate = todayAttendance.Any()
                 ? (double)todayAttendance.Count(a => a.Status == AttendanceStatus.Present) / todayAttendance.Count * 100
