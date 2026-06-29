@@ -153,7 +153,10 @@ namespace KhairAPI.Services.Implementations
                 {
                     Student = sh.Student,
                     Target = sh.Student.Target,
-                    Assignments = sh.Student.StudentHalaqat.Select(a => new
+                    // Only expose THIS teacher's assignments for the student. Including
+                    // other teachers' halaqat would leak them into the my-students view
+                    // (e.g. the client picks halaqaId from the first active assignment).
+                    Assignments = sh.Student.StudentHalaqat.Where(a => a.TeacherId == teacherId).Select(a => new
                     {
                         a.StudentId,
                         a.HalaqaId,
@@ -180,7 +183,11 @@ namespace KhairAPI.Services.Implementations
             {
                 var student = r.Student;
                 var target = r.Target;
-                var activeAssignment = r.Assignments.FirstOrDefault(a => a.IsActive);
+                // Scope the displayed halaqa/teacher to THIS teacher. A student may be
+                // enrolled in several halaqat under different teachers, so picking the
+                // first active assignment overall would surface another teacher's halaqa.
+                var activeAssignment = r.Assignments.FirstOrDefault(a => a.IsActive && a.TeacherId == teacherId)
+                    ?? r.Assignments.FirstOrDefault(a => a.IsActive);
 
                 // Always build today's achievement so teachers can see whether the
                 // student has any record today, even when no target has been set.
