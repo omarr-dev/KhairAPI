@@ -143,7 +143,15 @@ namespace KhairAPI.Core.Extensions
         /// </summary>
         public static IServiceCollection AddHangfireServices(this IServiceCollection services, IConfiguration configuration)
         {
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            // Give Hangfire its own small pool (4) so it can't exhaust the
+            // server's session-mode pooler limit (15) shared with EF Core.
+            var connectionString = new Npgsql.NpgsqlConnectionStringBuilder(
+                configuration.GetConnectionString("DefaultConnection"))
+            {
+                MaxPoolSize = 4,
+                MinPoolSize = 1,
+                ConnectionIdleLifetime = 60
+            }.ConnectionString;
 
             services.AddHangfire(config => config
                 .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -154,7 +162,9 @@ namespace KhairAPI.Core.Extensions
                     QueuePollInterval = TimeSpan.FromSeconds(15)
                 }));
 
-            services.AddHangfireServer();
+            // Default worker count is ProcessorCount x 5, which can open too
+            // many DB connections. Keep it small to stay within the pool.
+            services.AddHangfireServer(options => options.WorkerCount = 2);
 
             return services;
         }

@@ -49,9 +49,18 @@ public class Program
         builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o =>
             o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
-        // Configure PostgreSQL with Entity Framework
+        // Configure PostgreSQL with Entity Framework.
+        // Cap the pool so EF + Hangfire together stay under the server's
+        // session-mode pooler limit (15). EF gets 8, Hangfire gets 4.
+        var efConnectionString = new Npgsql.NpgsqlConnectionStringBuilder(
+            builder.Configuration.GetConnectionString("DefaultConnection"))
+        {
+            MaxPoolSize = 8,
+            MinPoolSize = 1,
+            ConnectionIdleLifetime = 60
+        }.ConnectionString;
         builder.Services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+            options.UseNpgsql(efConnectionString));
 
         // Configure CORS for Next.js frontend
       // Add CORS service to allow all origins, headers, and methods
