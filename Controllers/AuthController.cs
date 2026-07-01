@@ -31,6 +31,26 @@ namespace KhairAPI.Controllers
             return Ok(result);
         }
 
+        [HttpPost("student-login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> StudentLogin([FromBody] StudentLoginDto loginDto)
+        {
+            try
+            {
+                var result = await _authService.StudentLoginAsync(loginDto);
+
+                if (result == null)
+                    return Unauthorized(new { message = AppConstants.ErrorMessages.StudentNotFound });
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Ambiguous National ID (duplicate within tenant) - surface the Arabic message.
+                return Unauthorized(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("register")]
         [Authorize(Policy = "SupervisorOnly")]
         public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
@@ -49,6 +69,20 @@ namespace KhairAPI.Controllers
         {
             if (!_currentUserService.UserId.HasValue)
                 return Unauthorized();
+
+            // Students have no User/Teacher row: return their identity straight from the token
+            // and skip GetTeacherIdAsync (which would otherwise try to match a Teacher by UserId).
+            if (_currentUserService.IsStudent)
+            {
+                return Ok(new UserDto
+                {
+                    Id = _currentUserService.StudentId ?? _currentUserService.UserId.Value,
+                    PhoneNumber = _currentUserService.PhoneNumber ?? "",
+                    FullName = _currentUserService.FullName ?? "",
+                    Role = AppConstants.Roles.Student,
+                    StudentId = _currentUserService.StudentId
+                });
+            }
 
             var teacherId = await _currentUserService.GetTeacherIdAsync();
 

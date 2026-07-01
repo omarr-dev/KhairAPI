@@ -10,6 +10,10 @@ namespace KhairAPI.Core.Helpers
             public const string Supervisor = "Supervisor";
             public const string Teacher = "Teacher";
             public const string HalaqaSupervisor = "HalaqaSupervisor";
+            /// <summary>
+            /// A student logging in to view their own progress (no User row; authenticates by National ID)
+            /// </summary>
+            public const string Student = "Student";
             public const string SupervisorOrTeacher = "Supervisor,Teacher";
             /// <summary>
             /// Both full Supervisors and HalaqaSupervisors (limited scope)
@@ -39,6 +43,10 @@ namespace KhairAPI.Core.Helpers
             /// Any authenticated role
             /// </summary>
             public const string AnyRole = "AnyRole";
+            /// <summary>
+            /// Students only - for the student self-service portal (own data, read-only)
+            /// </summary>
+            public const string StudentOnly = "StudentOnly";
         }
 
         public static class ErrorMessages
@@ -54,6 +62,7 @@ namespace KhairAPI.Core.Helpers
             // Students
             public const string StudentNotFound = "الطالب غير موجود";
             public const string StudentIdNumberAlreadyExists = "يوجد طالب مسجل بنفس رقم الهوية مسبقاً";
+            public const string AmbiguousStudentId = "تعذّر تحديد الطالب، يوجد أكثر من طالب بنفس رقم الهوية. يرجى مراجعة المشرف";
             public const string CannotAssignStudent = "لا يمكن تعيين الطالب في هذه الحلقة";
             public const string AssignmentNotFound = "التعيين غير موجود";
             public const string StudentNotInHalaqa = "الطالب غير مسجل في هذه الحلقة مع هذا المعلم";

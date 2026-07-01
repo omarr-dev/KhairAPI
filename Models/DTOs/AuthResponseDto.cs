@@ -16,6 +16,10 @@ namespace KhairAPI.Models.DTOs
         public string Role { get; set; } = string.Empty;
         public int? TeacherId { get; set; }
         /// <summary>
+        /// Only populated for the Student role - the student's own id (used by the student portal)
+        /// </summary>
+        public int? StudentId { get; set; }
+        /// <summary>
         /// Only populated for HalaqaSupervisor role - list of halaqa IDs they can manage
         /// </summary>
         public List<int>? SupervisedHalaqaIds { get; set; }

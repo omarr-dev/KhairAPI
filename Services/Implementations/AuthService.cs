@@ -56,6 +56,56 @@ namespace KhairAPI.Services.Implementations
             return GenerateAuthResponse(user);
         }
 
+        public async Task<AuthResponseDto?> StudentLoginAsync(StudentLoginDto loginDto)
+        {
+            // Normalize to digits only (frontend already sends ASCII, but be defensive).
+            var nid = new string((loginDto.NationalId ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (nid.Length < 8)
+                return null;
+
+            // FirstOrDefault-style query (NOT FindAsync) so the tenant global query filter applies:
+            // a student from another association can never be matched. Tenant comes from X-Tenant-Id.
+            // Take(2) so we can detect an ambiguous NID within the tenant without loading every row.
+            var matches = await _context.Students
+                .Where(s => s.IdNumber == nid)
+                .OrderBy(s => s.Id)
+                .Take(2)
+                .ToListAsync();
+
+            if (matches.Count == 0)
+                return null;
+
+            if (matches.Count > 1)
+            {
+                // Legacy data may contain duplicate NIDs. Refuse to log into an arbitrary one.
+                throw new InvalidOperationException(AppConstants.ErrorMessages.AmbiguousStudentId);
+            }
+
+            return GenerateStudentAuthResponse(matches[0]);
+        }
+
+        private AuthResponseDto GenerateStudentAuthResponse(Student student)
+        {
+            var token = _jwtService.GenerateTokenForStudent(student);
+            var refreshToken = _jwtService.GenerateRefreshToken();
+            var expirationMinutes = int.Parse(_configuration["JwtSettings:ExpirationMinutes"] ?? "1440");
+
+            return new AuthResponseDto
+            {
+                Token = token,
+                RefreshToken = refreshToken,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes),
+                User = new UserDto
+                {
+                    Id = student.Id,
+                    PhoneNumber = student.Phone ?? string.Empty,
+                    FullName = student.FullName,
+                    Role = AppConstants.Roles.Student,
+                    StudentId = student.Id
+                }
+            };
+        }
+
         private Task<User?> FindActiveUserAsync(System.Linq.Expressions.Expression<Func<User, bool>> match)
         {
             return _context.Users

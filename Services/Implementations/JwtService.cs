@@ -58,6 +58,36 @@ namespace KhairAPI.Services.Implementations
             return tokenHandler.WriteToken(token);
         }
 
+        public string GenerateTokenForStudent(Student student)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_secretKey);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, student.Id.ToString()),
+                new Claim(ClaimTypes.MobilePhone, student.Phone ?? string.Empty),
+                new Claim(ClaimTypes.Name, student.FullName),
+                new Claim(ClaimTypes.Role, "Student"),
+                new Claim("AssociationId", student.AssociationId.ToString()), // Multi-tenancy support
+                // Explicit student id claim: student endpoints resolve the caller from this,
+                // never from the request, so a student can only ever see their own data.
+                new Claim("StudentId", student.Id.ToString())
+            };
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = DateTime.UtcNow.AddMinutes(_expirationMinutes),
+                Issuer = _issuer,
+                Audience = _audience,
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
+        }
+
         public string GenerateRefreshToken()
         {
             var randomNumber = new byte[64];

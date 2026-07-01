@@ -132,6 +132,10 @@ namespace KhairAPI.Data
             {
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => e.AssociationId);
+                // Composite index for student login-by-National-ID lookups (scoped per tenant).
+                // Deliberately NOT unique: legacy data may contain duplicate NIDs; the login flow
+                // rejects ambiguous matches rather than relying on a constraint that could fail to apply.
+                entity.HasIndex(e => new { e.IdNumber, e.AssociationId });
                 entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.GuardianName).HasMaxLength(255);

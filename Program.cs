@@ -105,6 +105,9 @@ builder.Services.AddCors(options =>
             options.AddPolicy("HalaqaSupervisorOrHigher", policy => policy.RequireRole("Supervisor", "HalaqaSupervisor"));
             // Any authenticated user with a valid role
             options.AddPolicy("AnyRole", policy => policy.RequireRole("Supervisor", "HalaqaSupervisor", "Teacher"));
+            // Students only - self-service portal. Deliberately NOT part of the policies above,
+            // so a Student token is rejected by every teacher/supervisor endpoint.
+            options.AddPolicy("StudentOnly", policy => policy.RequireRole("Student"));
         });
 
         // Configure Swagger/OpenAPI with JWT support

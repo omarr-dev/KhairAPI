@@ -10,12 +10,20 @@ namespace KhairAPI.Core.Helpers
     public interface ICurrentUserService
     {
         int? UserId { get; }
+        /// <summary>
+        /// The student's id, only present for Student-role tokens (from the "StudentId" claim).
+        /// </summary>
+        int? StudentId { get; }
         string? PhoneNumber { get; }
         string? FullName { get; }
         string? Role { get; }
         bool IsAuthenticated { get; }
         bool IsSupervisor { get; }
         bool IsTeacher { get; }
+        /// <summary>
+        /// True if the current token belongs to a student (self-service portal).
+        /// </summary>
+        bool IsStudent { get; }
         /// <summary>
         /// True if the user is a HalaqaSupervisor (limited scope supervisor)
         /// </summary>
@@ -65,6 +73,15 @@ namespace KhairAPI.Core.Helpers
             }
         }
 
+        public int? StudentId
+        {
+            get
+            {
+                var studentIdClaim = User?.FindFirst("StudentId")?.Value;
+                return int.TryParse(studentIdClaim, out var studentId) ? studentId : null;
+            }
+        }
+
         public string? PhoneNumber => User?.FindFirst(ClaimTypes.MobilePhone)?.Value;
 
         public string? FullName => User?.FindFirst(ClaimTypes.Name)?.Value;
@@ -78,6 +95,8 @@ namespace KhairAPI.Core.Helpers
         public bool IsTeacher => Role == AppConstants.Roles.Teacher;
 
         public bool IsHalaqaSupervisor => Role == AppConstants.Roles.HalaqaSupervisor;
+
+        public bool IsStudent => Role == AppConstants.Roles.Student;
 
         public bool HasSupervisorRole => IsSupervisor || IsHalaqaSupervisor;
 
