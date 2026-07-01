@@ -5,6 +5,17 @@ using System.ComponentModel.DataAnnotations;
 namespace KhairAPI.Models.Entities
 {
     /// <summary>
+    /// Subscription tiers shown on the landing page.
+    /// Add a new tier here to extend the model — no other schema change needed.
+    /// </summary>
+    public enum SubscriptionPlan
+    {
+        Free,
+        Professional,
+        Enterprise
+    }
+
+    /// <summary>
     /// Represents a Quranic association (جمعية) in the multi-tenant system.
     /// Each association has its own isolated data (users, students, halaqat).
     /// </summary>
@@ -55,6 +66,19 @@ namespace KhairAPI.Models.Entities
         public string? City { get; set; } // City
 
         public bool IsActive { get; set; } = true;
+
+        // ── Subscription / plan ──────────────────────────────────────────
+        // v1: stored only (chosen at registration). No enforcement yet —
+        // limits & feature-gating are added later on top of these columns.
+
+        /// <summary>The subscription tier this association signed up on.</summary>
+        public SubscriptionPlan Plan { get; set; } = SubscriptionPlan.Free;
+
+        /// <summary>Max students allowed by the plan. null = unlimited.</summary>
+        public int? StudentLimit { get; set; }
+
+        /// <summary>End of the free-trial / first-free-month. null = no trial (e.g. Free plan).</summary>
+        public DateTime? TrialEndsAt { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

@@ -127,6 +127,9 @@ namespace KhairAPI.Controllers
             
             try
             {
+                // Resolve the chosen subscription plan + trial window
+                var (plan, studentLimit, trialEndsAt) = ResolvePlan(dto.Plan, dto.StudentLimit);
+
                 // Create the association
                 var association = new Association
                 {
@@ -139,6 +142,9 @@ namespace KhairAPI.Controllers
                     ManagerName = dto.ManagerName.Trim(),
                     PhoneNumber = formattedPhone,
                     Email = dto.Email?.Trim(),
+                    Plan = plan,
+                    StudentLimit = studentLimit,
+                    TrialEndsAt = trialEndsAt,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -190,6 +196,34 @@ namespace KhairAPI.Controllers
                 _logger.LogError(ex, "Failed to create association: {AssociationName}", dto.AssociationName);
                 return StatusCode(500, new { message = "حدث خطأ أثناء إنشاء الجمعية. يرجى المحاولة مرة أخرى." });
             }
+        }
+
+        /// <summary>
+        /// Maps the plan chosen on the landing page to the stored plan, student limit,
+        /// and trial window. Paid plans get a free first month; Free is forever.
+        /// Centralised here so adding a tier or changing defaults is a one-spot edit.
+        /// </summary>
+        private static (SubscriptionPlan Plan, int? StudentLimit, DateTime? TrialEndsAt) ResolvePlan(
+            string? planName, int? requestedLimit)
+        {
+            var plan = (planName?.Trim().ToLowerInvariant()) switch
+            {
+                "professional" => SubscriptionPlan.Professional,
+                "enterprise" => SubscriptionPlan.Enterprise,
+                _ => SubscriptionPlan.Free,
+            };
+
+            return plan switch
+            {
+                // First month free, capacity from the chosen tier (fallback 100).
+                SubscriptionPlan.Professional
+                    => (plan, requestedLimit ?? 100, DateTime.UtcNow.AddMonths(1)),
+                // Enterprise registers via WhatsApp; if it ever lands here, treat as unlimited.
+                SubscriptionPlan.Enterprise
+                    => (plan, null, DateTime.UtcNow.AddMonths(1)),
+                // Free forever, capped at 25, no trial.
+                _ => (SubscriptionPlan.Free, 25, (DateTime?)null),
+            };
         }
     }
 }

@@ -39,6 +39,11 @@ namespace KhairAPI.Data
                 entity.HasIndex(e => e.Subdomain).IsUnique();
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
                 entity.Property(e => e.Subdomain).IsRequired().HasMaxLength(100);
+
+                // Store the subscription tier as a readable string column
+                entity.Property(e => e.Plan)
+                    .HasConversion<string>()
+                    .HasMaxLength(50);
             });
 
             // Configure User entity

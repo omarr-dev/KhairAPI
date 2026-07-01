@@ -43,6 +43,16 @@ namespace KhairAPI.Models.DTOs
         [MaxLength(255, ErrorMessage = "البريد الإلكتروني يجب ألا يتجاوز 255 حرف")]
         [EmailAddress(ErrorMessage = "البريد الإلكتروني غير صحيح")]
         public string? Email { get; set; }
+
+        // ── Plan selection (from the landing pricing section) ─────────────
+        // Optional: defaults to the Free plan when omitted.
+
+        /// <summary>"free" | "professional" | "enterprise" (case-insensitive). Defaults to free.</summary>
+        [MaxLength(50)]
+        public string? Plan { get; set; }
+
+        /// <summary>Chosen capacity tier for paid plans (e.g. 100 / 250 / 500). null = plan default.</summary>
+        public int? StudentLimit { get; set; }
     }
 
     /// <summary>
