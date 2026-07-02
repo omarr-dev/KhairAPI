@@ -20,7 +20,7 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<TodayTeacherAttendanceResponseDto> GetTodayAttendanceAsync(List<int>? halaqaFilter = null)
         {
-            var today = DateTime.UtcNow.Date;
+            var today = TodayKsa();
             var dayOfWeek = (int)today.DayOfWeek;
             var arabicDayName = AppConstants.ArabicDayNames.GetDayName(today.DayOfWeek);
 
@@ -133,7 +133,7 @@ namespace KhairAPI.Services.Implementations
                 throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
             }
 
-            var today = DateTime.UtcNow.Date;
+            var today = TodayKsa();
             var dayOfWeek = (int)today.DayOfWeek;
 
             var entriesByHalaqa = dto.Attendance.GroupBy(a => a.HalaqaId);
@@ -184,25 +184,36 @@ namespace KhairAPI.Services.Implementations
                     throw new InvalidOperationException($"المعلم ذو الرقم {entry.TeacherId} غير معين في الحلقة {entry.HalaqaId}");
                 }
 
-                ValidateTimes(entry.CheckInTime, entry.CheckOutTime);
+                var isAbsent = entry.Status == AttendanceStatus.Absent;
 
                 if (attendanceLookup.TryGetValue(new { entry.TeacherId, entry.HalaqaId }, out var existing))
                 {
+                    // Merge times instead of overwriting: an empty incoming time means "unchanged",
+                    // so a supervisor saving from a page loaded before a teacher self checked in/out
+                    // can't wipe that teacher's recorded times. Absent clears both.
+                    var checkIn = isAbsent ? null : entry.CheckInTime ?? existing.CheckInTime;
+                    var checkOut = isAbsent ? null : entry.CheckOutTime ?? existing.CheckOutTime;
+                    ValidateTimes(checkIn, checkOut);
+
                     existing.Status = entry.Status;
-                    existing.CheckInTime = entry.CheckInTime;
-                    existing.CheckOutTime = entry.CheckOutTime;
+                    existing.CheckInTime = checkIn;
+                    existing.CheckOutTime = checkOut;
                     existing.Notes = entry.Notes;
                 }
                 else
                 {
+                    var checkIn = isAbsent ? null : entry.CheckInTime;
+                    var checkOut = isAbsent ? null : entry.CheckOutTime;
+                    ValidateTimes(checkIn, checkOut);
+
                     var newAttendance = new TeacherAttendance
                     {
                         TeacherId = entry.TeacherId,
                         HalaqaId = entry.HalaqaId,
                         Date = today,
                         Status = entry.Status,
-                        CheckInTime = entry.CheckInTime,
-                        CheckOutTime = entry.CheckOutTime,
+                        CheckInTime = checkIn,
+                        CheckOutTime = checkOut,
                         Notes = entry.Notes,
                         CreatedAt = DateTime.UtcNow,
                         AssociationId = _tenantService.CurrentAssociationId.Value
@@ -386,7 +397,7 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<TeacherSelfAttendanceStatusDto> GetSelfAttendanceStatusAsync(int teacherId)
         {
-            var today = DateTime.UtcNow.Date;
+            var today = TodayKsa();
             var dayOfWeek = (int)today.DayOfWeek;
 
             var activeHalaqat = await GetTeacherActiveHalaqatTodayAsync(teacherId, dayOfWeek);
@@ -439,7 +450,7 @@ namespace KhairAPI.Services.Implementations
                 throw new InvalidOperationException("لم يتم تحديد الجمعية. يرجى تسجيل الدخول مرة أخرى.");
             }
 
-            var today = DateTime.UtcNow.Date;
+            var today = TodayKsa();
             var dayOfWeek = (int)today.DayOfWeek;
 
             var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
@@ -456,11 +467,29 @@ namespace KhairAPI.Services.Implementations
 
             if (existing != null)
             {
+                // Don't pretend an absent teacher checked in — tell them the supervisor
+                // marked them absent so they can get it corrected.
+                if (existing.Status == AttendanceStatus.Absent)
+                {
+                    throw new InvalidOperationException(AppConstants.ErrorMessages.MarkedAbsentBySupervisor);
+                }
+
+                // Present/Late set by a supervisor without a time: stamp the real arrival now.
+                var stampedNow = false;
+                if (existing.CheckInTime == null && existing.CheckOutTime == null)
+                {
+                    existing.CheckInTime = NowKsaTime();
+                    await _context.SaveChangesAsync();
+                    stampedNow = true;
+                }
+
                 return new TeacherSelfCheckInResultDto
                 {
                     CheckedIn = true,
                     RecordsCreated = 0,
-                    Message = AppConstants.SuccessMessages.TeacherCheckedIn
+                    Message = stampedNow
+                        ? AppConstants.SuccessMessages.TeacherCheckedIn
+                        : AppConstants.SuccessMessages.TeacherAlreadyCheckedIn
                 };
             }
 
@@ -486,7 +515,7 @@ namespace KhairAPI.Services.Implementations
 
         public async Task<TeacherSelfCheckInResultDto> SelfCheckOutAsync(int teacherId, int halaqaId)
         {
-            var today = DateTime.UtcNow.Date;
+            var today = TodayKsa();
             var dayOfWeek = (int)today.DayOfWeek;
 
             var activeHalaqaIds = await GetTeacherActiveHalaqaIdsTodayAsync(teacherId, dayOfWeek);
@@ -507,21 +536,31 @@ namespace KhairAPI.Services.Implementations
                 throw new InvalidOperationException(AppConstants.ErrorMessages.NotCheckedInYet);
             }
 
-            var nowTime = NowKsaTime();
-            var updated = 0;
-            // Skip if already checked out, and don't let departure precede arrival.
-            if (record.CheckOutTime == null &&
-                !(record.CheckInTime != null && nowTime < record.CheckInTime.Value))
+            if (record.CheckOutTime != null)
             {
-                record.CheckOutTime = nowTime;
-                updated++;
-                await _context.SaveChangesAsync();
+                return new TeacherSelfCheckInResultDto
+                {
+                    CheckedIn = true,
+                    RecordsCreated = 0,
+                    Message = AppConstants.SuccessMessages.TeacherAlreadyCheckedOut
+                };
             }
+
+            var nowTime = NowKsaTime();
+            // <= not <: times are truncated to minutes, so a same-minute check-out would
+            // store checkOut == checkIn — a record ValidateTimes rejects on every later save.
+            if (record.CheckInTime != null && nowTime <= record.CheckInTime.Value)
+            {
+                throw new InvalidOperationException(AppConstants.ErrorMessages.InvalidDepartureTime);
+            }
+
+            record.CheckOutTime = nowTime;
+            await _context.SaveChangesAsync();
 
             return new TeacherSelfCheckInResultDto
             {
                 CheckedIn = true,
-                RecordsCreated = updated,
+                RecordsCreated = 1,
                 Message = AppConstants.SuccessMessages.TeacherCheckedOut
             };
         }
@@ -584,6 +623,14 @@ namespace KhairAPI.Services.Implementations
             var ksaNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, KsaTimeZone);
             return new TimeOnly(ksaNow.Hour, ksaNow.Minute);
         }
+
+        /// <summary>
+        /// Today's date in KSA local time. Must match the zone of <see cref="NowKsaTime"/>:
+        /// the UTC date flips at 3:00 AM KSA, so using UtcNow.Date put saves made between
+        /// midnight and 3 AM on the previous day ("الحلقة غير نشطة اليوم").
+        /// </summary>
+        private static DateTime TodayKsa() =>
+            TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, KsaTimeZone).Date;
 
         /// <summary>Worked hours between arrival and departure, or null if either is missing/invalid.</summary>
         private static double? CalculateWorkedHours(TimeOnly? checkIn, TimeOnly? checkOut)
